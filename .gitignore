@@ -1,0 +1,39 @@
+# Dependencies
+frontend/node_modules/
+
+# Frontend build output
+frontend/dist/
+
+# Python virtual environments
+backend/myvenv/
+venv/
+.venv/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+**/__pycache__/
+
+# Local app data / generated files
+backend/expense_tracker.sqlite3
+backend/*.sqlite3
+backend/*.db
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Logs
+*.log
+
+# Editor and OS artifacts
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test/cache artifacts
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage/
