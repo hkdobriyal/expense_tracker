@@ -52,3 +52,24 @@ class BillCreate(BaseModel):
     due_date: str
     frequency: str = "monthly"
     status: str = "upcoming"
+
+
+class SMSParseRequest(BaseModel):
+    text: str
+
+
+class SMSParseResponse(BaseModel):
+    success: bool
+    data: Optional[dict] = None
+    error: Optional[str] = None
+
+
+class BatchTransactionCreate(BaseModel):
+    transactions: list[TransactionCreate]
+
+
+class SyncWebhookPayload(BaseModel):
+    text: Optional[str] = None
+    sender: Optional[str] = None
+    timestamp: Optional[str] = None
+

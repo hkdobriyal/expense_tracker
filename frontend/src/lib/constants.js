@@ -52,6 +52,7 @@ export const accountTypes = ['savings', 'current', 'cash', 'credit', 'wallet', '
 
 export const navItems = [
   { id: 'overview', label: 'Overview', icon: '⌂', hint: 'Dashboard' },
+  { id: 'autosync', label: 'Auto-Sync & UPI', icon: '⚡', hint: 'Live Sync' },
   { id: 'transactions', label: 'Transactions', icon: '↕', hint: 'Ledger' },
   { id: 'accounts', label: 'Accounts', icon: '▣', hint: 'Wallets' },
   { id: 'investments', label: 'Investments', icon: '◈', hint: 'Portfolio' },
@@ -60,3 +61,4 @@ export const navItems = [
   { id: 'insights', label: 'Insights', icon: '◉', hint: 'Patterns' },
   { id: 'goals', label: 'Goals', icon: '◎', hint: 'Targets' },
 ]
+

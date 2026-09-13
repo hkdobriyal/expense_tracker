@@ -1,7 +1,19 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from . import crud
-from .schemas import AccountCreate, BillCreate, BudgetCreate, GoalCreate, TransactionCreate, TransactionOut
+from .schemas import (
+    AccountCreate,
+    BillCreate,
+    BudgetCreate,
+    GoalCreate,
+    TransactionCreate,
+    TransactionOut,
+    BatchTransactionCreate,
+    SMSParseRequest,
+    SMSParseResponse,
+    SyncWebhookPayload,
+)
+from .parser import parse_bank_sms
 from .database import get_db
 from datetime import datetime
 from typing import Any, List
@@ -262,3 +274,49 @@ async def delete_transaction(txn_id: str):
     if not ok:
         raise HTTPException(status_code=404, detail="Transaction not found")
     return {"deleted": True}
+
+
+@app.post("/sync/parse-text", response_model=SMSParseResponse)
+async def sync_parse_text(payload: SMSParseRequest):
+    parsed = parse_bank_sms(payload.text)
+    if not parsed:
+        return SMSParseResponse(
+            success=False,
+            error="Could not extract a financial transaction from this text. Please ensure it includes an amount (e.g. INR 450) and transaction details.",
+        )
+    return SMSParseResponse(success=True, data=parsed)
+
+
+@app.post("/sync/sms")
+async def sync_sms_webhook(payload: SyncWebhookPayload):
+    text = payload.text or ""
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Empty text received")
+    parsed = parse_bank_sms(text)
+    if not parsed:
+        raise HTTPException(status_code=422, detail="Text could not be parsed as a valid financial transaction")
+
+    created = await crud.create_transaction({
+        "title": parsed["title"],
+        "amount": parsed["amount"],
+        "category": parsed["category"],
+        "notes": parsed["notes"],
+        "date": datetime.utcnow(),
+        "kind": parsed["kind"],
+        "payment_method": parsed["payment_method"],
+        "merchant": parsed["merchant"],
+        "recurring": False,
+    })
+    return {"synced": True, "transaction": created}
+
+
+@app.post("/transactions/batch")
+async def create_transactions_batch(payload: BatchTransactionCreate):
+    items = [item.model_dump() for item in payload.transactions]
+    return await crud.create_batch_transactions(items)
+
+
+@app.get("/analytics/advanced")
+async def get_advanced_analytics():
+    return await crud.get_advanced_analytics()
+

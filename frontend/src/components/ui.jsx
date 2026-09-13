@@ -4,9 +4,83 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { categories, kindDetails, kinds, paymentMethods } from '../lib/constants'
 import { categoryColor, money, monthLabel, shortDate } from '../lib/format'
 
-export function Icon({ children }) {
+import { playClick } from '../lib/sound'
+
+export function Icon({ children, name }) {
+  if (name === 'overview' || children === '⌂') {
+    return (
+      <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+      </svg>
+    )
+  }
+  if (name === 'autosync' || children === '⚡') {
+    return (
+      <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="#7ef0c2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    )
+  }
+  if (name === 'transactions' || children === '↕') {
+    return (
+      <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" />
+      </svg>
+    )
+  }
+  if (name === 'accounts' || children === '▣') {
+    return (
+      <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect width="20" height="14" x="2" y="5" rx="2" /><line x1="2" x2="22" y1="10" y2="10" />
+      </svg>
+    )
+  }
+  if (name === 'investments' || children === '◈') {
+    return (
+      <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
+      </svg>
+    )
+  }
+  if (name === 'budgets' || children === '◒') {
+    return (
+      <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21.21 15.89A10 10 0 1 1 8 2.83" /><path d="M22 12A10 10 0 0 0 12 2v10z" />
+      </svg>
+    )
+  }
+  if (name === 'bills' || children === '◷') {
+    return (
+      <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+      </svg>
+    )
+  }
+  if (name === 'insights' || children === '◉') {
+    return (
+      <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" />
+      </svg>
+    )
+  }
+  if (name === 'goals' || children === '◎') {
+    return (
+      <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" />
+      </svg>
+    )
+  }
+  if (name === 'settings' || children === '⚙') {
+    return (
+      <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    )
+  }
   return <span className="nav-icon">{children}</span>
 }
+
 
 export function BackgroundParticles({ particles }) {
   return (
@@ -267,17 +341,31 @@ export function DonutChart({ breakdown }) {
 
 export function TrendChart({ series }) {
   const max = Math.max(...series.flatMap((item) => [item.expense, item.income]), 1)
-  const points = (key) => series.map((item, index) => {
-    const x = (index / Math.max(series.length - 1, 1)) * 320
-    const y = 110 - (item[key] / max) * 96
-    return `${x},${y}`
-  }).join(' ')
+  const points = (key) =>
+    series
+      .map((item, index) => {
+        const x = (index / Math.max(series.length - 1, 1)) * 320
+        const y = 110 - (item[key] / max) * 96
+        return `${x},${y}`
+      })
+      .join(' ')
+
   if (!series.length) return <div className="empty-chart">Trends appear after a few months of entries.</div>
   return (
     <div className="trend-wrap">
       <svg viewBox="0 0 320 130" className="trend-svg" preserveAspectRatio="none">
-        <polyline fill="none" stroke="#ff8fab" strokeWidth="3" points={points('expense')} />
-        <polyline fill="none" stroke="#7ef0c2" strokeWidth="3" points={points('income')} />
+        <defs>
+          <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#7ef0c2" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#7ef0c2" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ff8fab" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#ff8fab" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polyline fill="none" stroke="#ff8fab" strokeWidth="2.5" strokeLinecap="round" points={points('expense')} />
+        <polyline fill="none" stroke="#7ef0c2" strokeWidth="2.5" strokeLinecap="round" points={points('income')} />
       </svg>
       <div className="trend-axis">
         {series.map((item) => (
@@ -292,33 +380,44 @@ export function TrendChart({ series }) {
   )
 }
 
-export function MetricCards({ expenses, income, investments, cashflow, count }) {
+export function MetricCards({ expenses, income, investments, cashflow, count, healthScore, burnRate }) {
   return (
     <section className="metric-grid four">
-      <motion.div className="metric-card featured" whileHover={{ y: -4 }}>
+      <motion.div className="metric-card featured" whileHover={{ y: -4, scale: 1.01 }}>
         <span className="metric-label">SPENDS TRACKED</span>
         <strong><AnimatedNumber value={expenses} /></strong>
-        <div className="metric-foot"><span className="trend-up">INR · ₹</span> Across {count} ledger entries</div>
+        <div className="metric-foot">
+          <span className="trend-up">INR · ₹</span> Across {count} transactions
+        </div>
         <div className="sparkline"><i /><i /><i /><i /><i /><i /><i /><i /></div>
       </motion.div>
-      <motion.div className="metric-card" whileHover={{ y: -4 }}>
+      <motion.div className="metric-card" whileHover={{ y: -4, scale: 1.01 }}>
         <span className="metric-label">INCOME</span>
         <strong><AnimatedNumber value={income} /></strong>
         <div className="metric-foot">Salary, refunds and inflow</div>
       </motion.div>
-      <motion.div className="metric-card" whileHover={{ y: -4 }}>
+      <motion.div className="metric-card" whileHover={{ y: -4, scale: 1.01 }}>
         <span className="metric-label">INVESTED</span>
         <strong><AnimatedNumber value={investments} /></strong>
         <div className="metric-foot">SIPs, funds and deposits</div>
       </motion.div>
-      <motion.div className="metric-card" whileHover={{ y: -4 }}>
+      <motion.div className="metric-card" whileHover={{ y: -4, scale: 1.01 }}>
         <span className="metric-label">CASHFLOW</span>
         <strong className={cashflow >= 0 ? 'positive' : 'negative'}><AnimatedNumber value={cashflow} /></strong>
-        <div className="metric-foot">{cashflow >= 0 ? 'Surplus this view' : 'Spending ahead of income'}</div>
+        <div className="metric-foot">
+          {healthScore ? (
+            <span className="health-mini-pill">Health: {healthScore}/100</span>
+          ) : cashflow >= 0 ? (
+            'Surplus this view'
+          ) : (
+            'Spending ahead of income'
+          )}
+        </div>
       </motion.div>
     </section>
   )
 }
+
 
 export function PanelHeading({ kicker, title, action }) {
   return (

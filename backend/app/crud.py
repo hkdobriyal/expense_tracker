@@ -142,3 +142,143 @@ async def create_bill(data: dict) -> dict:
 
 async def list_bills() -> List[dict]:
     return _list_simple("bills")
+
+
+async def create_batch_transactions(items: List[dict]) -> dict:
+    db = get_db()
+    existing = set()
+    rows = db.execute("SELECT title, amount, substr(date, 1, 10) as day FROM transactions").fetchall()
+    for row in rows:
+        existing.add((row["title"].strip().lower(), round(float(row["amount"]), 2), row["day"]))
+
+    created_ids = []
+    skipped_count = 0
+    for item in items:
+        title = item["title"].strip()
+        amount = round(float(item["amount"]), 2)
+        date_str = item.get("date")
+        if isinstance(date_str, datetime):
+            date_str = date_str.isoformat()
+        elif not date_str:
+            date_str = datetime.utcnow().isoformat()
+        day_str = str(date_str)[:10]
+
+        key = (title.lower(), amount, day_str)
+        if key in existing:
+            skipped_count += 1
+            continue
+
+        cursor = db.execute(
+            "INSERT INTO transactions (title, amount, category, notes, date, kind, payment_method, merchant, recurring) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                title,
+                amount,
+                item.get("category"),
+                item.get("notes"),
+                date_str,
+                item.get("kind", "expense"),
+                item.get("payment_method"),
+                item.get("merchant"),
+                int(item.get("recurring", False)),
+            ),
+        )
+        existing.add(key)
+        created_ids.append(str(cursor.lastrowid))
+
+    db.commit()
+    db.close()
+    return {
+        "created_count": len(created_ids),
+        "skipped_count": skipped_count,
+        "created_ids": created_ids,
+    }
+
+
+async def get_advanced_analytics() -> dict:
+    db = get_db()
+    rows = [dict(row) for row in db.execute("SELECT * FROM transactions ORDER BY date DESC").fetchall()]
+    budgets = [dict(row) for row in db.execute("SELECT * FROM budgets").fetchall()]
+    goals = [dict(row) for row in db.execute("SELECT * FROM goals").fetchall()]
+    bills = [dict(row) for row in db.execute("SELECT * FROM bills").fetchall()]
+    db.close()
+
+    total_expense = sum(r["amount"] for r in rows if (r.get("kind") or "expense") == "expense")
+    total_income = sum(r["amount"] for r in rows if r.get("kind") == "income")
+    total_investment = sum(r["amount"] for r in rows if r.get("kind") == "investment")
+
+    # 1. Payment Methods Breakdown (for expenses)
+    methods: dict[str, float] = {}
+    for r in rows:
+        if (r.get("kind") or "expense") == "expense":
+            m = r.get("payment_method") or "UPI"
+            methods[m] = methods.get(m, 0.0) + float(r["amount"])
+
+    payment_method_breakdown = [
+        {"method": m, "amount": round(amt, 2), "percentage": round((amt / total_expense * 100), 1) if total_expense else 0}
+        for m, amt in sorted(methods.items(), key=lambda x: x[1], reverse=True)
+    ]
+
+    # 2. Top Merchants (for expenses)
+    merchants: dict[str, dict] = {}
+    for r in rows:
+        if (r.get("kind") or "expense") == "expense":
+            name = r.get("merchant") or r.get("title")
+            if name:
+                name = name.strip()
+                if name not in merchants:
+                    merchants[name] = {"name": name, "amount": 0.0, "count": 0, "category": r.get("category")}
+                merchants[name]["amount"] += float(r["amount"])
+                merchants[name]["count"] += 1
+
+    top_merchants = sorted(merchants.values(), key=lambda x: x["amount"], reverse=True)[:8]
+
+    # 3. Daily Burn Rate & Velocity (estimated across recorded days or 30 days)
+    now = datetime.utcnow()
+    last_30_days_expense = 0.0
+    for r in rows:
+        if (r.get("kind") or "expense") == "expense":
+            try:
+                dt = datetime.fromisoformat(str(r.get("date")).replace("Z", "+00:00").split("+")[0])
+                if (now - dt).days <= 30:
+                    last_30_days_expense += float(r["amount"])
+            except Exception:
+                pass
+    daily_burn_rate = round(last_30_days_expense / 30, 2) if last_30_days_expense else round(total_expense / max(len(rows), 1), 2)
+
+    # 4. Financial Health Score (0 - 100)
+    savings_rate = ((total_income - total_expense - total_investment) / total_income * 100) if total_income else 0
+    health_score = 50
+    if savings_rate >= 40:
+        health_score += 35
+    elif savings_rate >= 20:
+        health_score += 25
+    elif savings_rate >= 0:
+        health_score += 10
+    else:
+        health_score -= 20
+
+    # Overdue bills penalty
+    overdue_bills = [b for b in bills if b.get("status") != "paid" and str(b.get("due_date")) < now.strftime("%Y-%m-%d")]
+    if not overdue_bills:
+        health_score += 10
+    else:
+        health_score -= len(overdue_bills) * 8
+
+    # Goals active bonus
+    if goals:
+        health_score += 5
+
+    health_score = max(5, min(100, health_score))
+
+    return {
+        "payment_methods": payment_method_breakdown,
+        "top_merchants": top_merchants,
+        "daily_burn_rate": daily_burn_rate,
+        "last_30_days_expense": round(last_30_days_expense, 2),
+        "financial_health_score": health_score,
+        "total_expense": round(total_expense, 2),
+        "total_income": round(total_income, 2),
+        "total_investment": round(total_investment, 2),
+        "transaction_count": len(rows),
+    }
+

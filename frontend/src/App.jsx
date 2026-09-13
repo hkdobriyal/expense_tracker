@@ -8,7 +8,6 @@ import {
   CaptureForm,
   ConfirmDialog,
   DonutChart,
-  HeroOrbit,
   Icon,
   MetricCards,
   MonthChips,
@@ -19,6 +18,9 @@ import {
   TransactionRow,
   TrendChart,
 } from './components/ui'
+import { ThreeDCore } from './components/ThreeDCore'
+import { AutoSyncHub } from './components/AutoSyncHub'
+import { playChime, playClick, isSoundEnabled, setSoundEnabled } from './lib/sound'
 
 const emptyForm = () => ({
   title: '',
@@ -63,6 +65,8 @@ export default function App() {
   const [budgets, setBudgets] = useState([])
   const [goals, setGoals] = useState([])
   const [bills, setBills] = useState([])
+  const [advancedAnalytics, setAdvancedAnalytics] = useState(null)
+  const [soundActive, setSoundActive] = useState(isSoundEnabled())
   const [resourceModal, setResourceModal] = useState('')
   const [resourceForm, setResourceForm] = useState(emptyResource)
   const [motionEnabled, setMotionEnabled] = useState(true)
@@ -93,6 +97,7 @@ export default function App() {
       setBudgets(data.budgets)
       setGoals(data.goals)
       setBills(data.bills)
+      if (data.analytics) setAdvancedAnalytics(data.analytics)
     } catch {
       setError('The API is unavailable. Start FastAPI on port 8000 and refresh.')
     } finally {
@@ -356,16 +361,23 @@ export default function App() {
         <div className="sidebar-label">WORKSPACE</div>
         <nav>
           {navItems.map((item) => (
-            <button key={item.id} className={`nav-item ${activeView === item.id ? 'active' : ''}`} onClick={() => setActiveView(item.id)}>
-              <Icon>{item.icon}</Icon>
+            <button
+              key={item.id}
+              className={`nav-item ${activeView === item.id ? 'active' : ''}`}
+              onClick={() => {
+                playClick()
+                setActiveView(item.id)
+              }}
+            >
+              <Icon name={item.id}>{item.icon}</Icon>
               {item.label}
               {item.id === 'transactions' && items.length > 0 && <small>{items.length}</small>}
             </button>
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <button className="command-hint" onClick={() => setCommandOpen(true)}>Search · Ctrl K</button>
-          <button className="nav-item" onClick={() => setActiveView('settings')}><Icon>⚙</Icon>Settings</button>
+          <button className="command-hint" onClick={() => { playClick(); setCommandOpen(true) }}>Search · Ctrl K</button>
+          <button className="nav-item" onClick={() => { playClick(); setActiveView('settings') }}><Icon name="settings">⚙</Icon>Settings</button>
           <div className="profile-card">
             <span className="avatar">H</span>
             <div>
@@ -377,11 +389,11 @@ export default function App() {
       </aside>
       <div className="main-shell">
         <header className="topbar">
-          <button className="mobile-brand brand" onClick={() => setActiveView('overview')}><span className="brand-mark">+</span><span>ledgerly</span></button>
+          <button className="mobile-brand brand" onClick={() => { playClick(); setActiveView('overview') }}><span className="brand-mark">+</span><span>ledgerly</span></button>
           <div className="topbar-title">{navItems.find((item) => item.id === activeView)?.label || 'Settings'}</div>
           <div className="topbar-actions">
-            <button className="icon-button notification" onClick={() => setCommandOpen(true)} aria-label="Search">⌕</button>
-            <button className="top-add" onClick={() => openCapture()}>+ <span>Add transaction</span></button>
+            <button className="icon-button notification" onClick={() => { playClick(); setCommandOpen(true) }} aria-label="Search">⌕</button>
+            <button className="top-add" onClick={() => { playClick(); openCapture() }}>+ <span>Add transaction</span></button>
           </div>
         </header>
         <main className="dashboard">
@@ -394,16 +406,24 @@ export default function App() {
                     <p className="eyebrow">{longDate()} · INDIA</p>
                     <h1>Your money, <em>in motion.</em></h1>
                     <p className="intro-copy">Track every rupee, from UPI chai runs to long-term investments.</p>
-                    <MonthChips months={months.slice(-4)} value={month} onChange={setMonth} />
+                    <MonthChips months={months.slice(-4)} value={month} onChange={(m) => { playClick(); setMonth(m) }} />
                   </div>
-                  <HeroOrbit cashflow={cashflow} invested={investments} billsDue={billsDue} />
+                  <ThreeDCore cashflow={cashflow} invested={investments} billsDue={billsDue} />
                 </section>
-                <MetricCards expenses={expenses} income={income} investments={investments} cashflow={cashflow} count={scopedItems.length} />
+                <MetricCards
+                  expenses={expenses}
+                  income={income}
+                  investments={investments}
+                  cashflow={cashflow}
+                  count={scopedItems.length}
+                  healthScore={advancedAnalytics?.financial_health_score}
+                  burnRate={advancedAnalytics?.daily_burn_rate}
+                />
                 <section className="pulse-row">
                   <div className="pulse-chip"><span>Savings rate</span><strong>{savingsRate}%</strong></div>
                   <div className="pulse-chip"><span>Accounts</span><strong>{money(accountTotal)}</strong></div>
                   <div className="pulse-chip"><span>Open bills</span><strong>{money(billsDue)}</strong></div>
-                  <div className="pulse-chip"><span>Goals</span><strong>{goals.length}</strong></div>
+                  <div className="pulse-chip"><span>Daily burn</span><strong>{money(advancedAnalytics?.daily_burn_rate || 0)}/d</strong></div>
                 </section>
                 <section className="content-grid">
                   <motion.div className="panel add-panel">
@@ -428,7 +448,7 @@ export default function App() {
                       <span className="section-kicker">LIVE LEDGER</span>
                       <h2>Recent activity</h2>
                     </div>
-                    <button className="text-button" onClick={() => setActiveView('transactions')}>View all ↗</button>
+                    <button className="text-button" onClick={() => { playClick(); setActiveView('transactions') }}>View all ↗</button>
                   </div>
                   {loading ? <div className="empty-state">Loading your ledger...</div> : scopedItems.slice(0, 6).length ? (
                     <div className="transaction-list">
@@ -442,12 +462,25 @@ export default function App() {
                     <div className="empty-state">
                       <span className="empty-orbit">+</span>
                       <h3>Nothing recorded yet</h3>
-                      <p>Add your first expense and watch your dashboard come alive.</p>
+                      <p>Add your first expense or test 1-click UPI sync to watch your dashboard come alive.</p>
                     </div>
                   )}
                 </section>
               </motion.div>
             )}
+            {activeView === 'autosync' && (
+              <motion.div key="autosync" className="view" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
+                <AutoSyncHub
+                  advancedAnalytics={advancedAnalytics}
+                  onTransactionAdded={(txn) => {
+                    loadWorkspace()
+                    setToast(txn ? `Synced: ${txn.title} · ${money(txn.amount)}` : 'Workspace updated')
+                    playChime()
+                  }}
+                />
+              </motion.div>
+            )}
+
             {activeView === 'transactions' && (
               <motion.div key="transactions" className="view" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
                 <PageIntro kicker="YOUR LEDGER" title="Every rupee, accounted for." copy="Search, filter by month and type, edit, and keep a clean financial history." action={<button className="primary-button compact" onClick={() => openCapture()}>+ Add transaction</button>} />
@@ -594,6 +627,20 @@ export default function App() {
                   <div className="panel settings-panel">
                     <SettingRow title="Currency" description="Used across your dashboard" value="INR · ₹" />
                     <SettingRow title="Workspace" description="Your data stays on this device" value="Local only" />
+                    <SettingRow
+                      title="Audio Feedback"
+                      description="Futuristic clicks and celebratory sync chimes"
+                      value={soundActive ? 'On' : 'Off'}
+                      toggle
+                      active={soundActive}
+                      onToggle={() => {
+                        const next = !soundActive
+                        setSoundActive(next)
+                        setSoundEnabled(next)
+                        if (next) playChime()
+                        setToast(`Audio ${next ? 'enabled' : 'muted'}`)
+                      }}
+                    />
                     <SettingRow title="Export CSV" description="Spreadsheet backup for transactions" value={<button className="export-button" onClick={() => { window.location.href = `${API}/transactions/export.csv` }}>CSV ↓</button>} />
                     <SettingRow title="Full backup" description="JSON backup for every finance module" value={<button className="export-button" onClick={() => { window.location.href = `${API}/backup.json` }}>JSON ↓</button>} />
                     <SettingRow title="Restore backup" description="Replace this workspace from a JSON file" value={<button className="export-button" onClick={() => restoreInput.current?.click()}>JSON ↑</button>} />
