@@ -15,7 +15,7 @@ async def create_transaction(doc: dict) -> dict:
     return created
 
 
-async def list_transactions(limit: int = 100) -> List[dict]:
+async def list_transactions(limit: int = 10000) -> List[dict]:
     db = get_db()
     rows = db.execute("SELECT * FROM transactions ORDER BY date DESC LIMIT ?", (limit,)).fetchall()
     items = [dict(row) for row in rows]

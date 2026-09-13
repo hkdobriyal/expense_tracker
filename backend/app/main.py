@@ -4,7 +4,7 @@ from . import crud
 from .schemas import AccountCreate, BillCreate, BudgetCreate, GoalCreate, TransactionCreate, TransactionOut
 from .database import get_db
 from datetime import datetime
-from typing import List
+from typing import Any, List
 from fastapi.responses import StreamingResponse
 import csv
 import io
@@ -86,15 +86,66 @@ async def export_transactions():
     return StreamingResponse(iter([buffer.getvalue()]), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=ledgerly-transactions.csv"})
 
 
+BACKUP_TABLES = ("transactions", "accounts", "budgets", "goals", "bills")
+BACKUP_COLUMNS = {
+    "transactions": ("id", "title", "amount", "category", "notes", "date", "kind", "payment_method", "merchant", "recurring"),
+    "accounts": ("id", "name", "account_type", "institution", "opening_balance", "currency", "created_at"),
+    "budgets": ("id", "name", "category", "amount", "period", "created_at"),
+    "goals": ("id", "name", "target_amount", "current_amount", "target_date", "created_at"),
+    "bills": ("id", "name", "amount", "due_date", "frequency", "status", "created_at"),
+}
+
+
 @app.get("/backup.json")
 async def backup_json():
     db = get_db()
     payload = {}
-    for table in ("transactions", "accounts", "budgets", "goals", "bills"):
+    for table in BACKUP_TABLES:
         payload[table] = [dict(row) for row in db.execute(f"SELECT * FROM {table}").fetchall()]
     db.close()
     content = json.dumps({"version": 1, "exported_at": datetime.utcnow().isoformat(), "currency": "INR", "data": payload}, indent=2)
     return StreamingResponse(iter([content]), media_type="application/json", headers={"Content-Disposition": "attachment; filename=ledgerly-backup.json"})
+
+
+@app.post("/backup/restore")
+async def restore_backup(payload: dict[str, Any]):
+    envelope = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    if not isinstance(envelope, dict):
+        raise HTTPException(status_code=400, detail="Invalid backup file")
+    db = get_db()
+    try:
+        db.execute("BEGIN")
+        for table in BACKUP_TABLES:
+            rows = envelope.get(table) or []
+            if not isinstance(rows, list):
+                raise ValueError(f"Backup table {table} must be a list")
+            db.execute(f"DELETE FROM {table}")
+            allowed = BACKUP_COLUMNS[table]
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                values = {key: row[key] for key in allowed if key in row}
+                if not values:
+                    continue
+                columns = ", ".join(values.keys())
+                placeholders = ", ".join("?" for _ in values)
+                db.execute(f"INSERT INTO {table} ({columns}) VALUES ({placeholders})", tuple(values.values()))
+        db.commit()
+        try:
+            for table in BACKUP_TABLES:
+                max_id = db.execute(f"SELECT MAX(id) FROM {table}").fetchone()[0]
+                db.execute("DELETE FROM sqlite_sequence WHERE name = ?", (table,))
+                if max_id:
+                    db.execute("INSERT INTO sqlite_sequence(name, seq) VALUES (?, ?)", (table, max_id))
+            db.commit()
+        except Exception:
+            pass
+    except Exception as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Could not restore backup: {error}") from error
+    finally:
+        db.close()
+    return {"restored": True}
 
 
 @app.post("/accounts")
