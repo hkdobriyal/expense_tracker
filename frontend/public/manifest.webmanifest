@@ -1,18 +1,49 @@
 {
-  "name": "Ledgerly Expense Tracker",
+  "id": "/",
+  "name": "Ledgerly Personal Finance OS",
   "short_name": "Ledgerly",
-  "description": "A mobile-friendly personal expense tracker for Indian spending, budgets, bills, goals, and investments.",
+  "description": "Privacy-first personal finance tracker with zero-touch Indian UPI & bank sync, 3D analytics, budgets, and investments.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
-  "orientation": "portrait",
+  "categories": ["finance", "productivity", "utilities"],
   "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Quick Add Transaction",
+      "short_name": "Add Txn",
+      "description": "Record a new expense or income",
+      "url": "/?action=capture",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Auto-Sync Hub",
+      "short_name": "AutoSync",
+      "description": "Import bank statement or simulate live UPI debit",
+      "url": "/?action=autosync",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

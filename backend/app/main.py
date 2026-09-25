@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from . import crud
 from .schemas import (
@@ -12,11 +12,25 @@ from .schemas import (
     SMSParseRequest,
     SMSParseResponse,
     SyncWebhookPayload,
+    AAConsentRequest,
+    AAOtpVerifyRequest,
+    AADataFetchRequest,
+    StatementUploadResponse,
 )
 from .parser import parse_bank_sms
+from .aa import (
+    get_fips,
+    initiate_consent,
+    verify_otp,
+    get_consent_status,
+    fetch_rebit_transactions,
+    get_aa_config,
+    update_aa_config,
+)
+from .statement_parser import parse_csv_statement, parse_pdf_statement
 from .database import get_db
 from datetime import datetime
-from typing import Any, List
+from typing import Any, List, Optional
 from fastapi.responses import StreamingResponse
 import csv
 import io
@@ -319,4 +333,123 @@ async def create_transactions_batch(payload: BatchTransactionCreate):
 @app.get("/analytics/advanced")
 async def get_advanced_analytics():
     return await crud.get_advanced_analytics()
+
+
+# --- RBI Account Aggregator (AA) Framework Endpoints ---
+
+@app.get("/aa/config")
+async def get_account_aggregator_config():
+    return get_aa_config()
+
+
+@app.post("/aa/config")
+async def set_account_aggregator_config(payload: dict):
+    return update_aa_config(
+        provider=payload.get("provider", "sandbox"),
+        client_id=payload.get("client_id", ""),
+        client_secret=payload.get("client_secret", ""),
+        product_instance_id=payload.get("product_instance_id", ""),
+        environment=payload.get("environment", "sandbox"),
+    )
+
+
+@app.get("/aa/fips")
+async def list_aa_fips():
+    return get_fips()
+
+
+@app.post("/aa/consent")
+async def create_aa_consent(payload: AAConsentRequest):
+    return initiate_consent(
+        mobile_number=payload.mobile_number,
+        fip_id=payload.fip_id,
+        date_from=payload.date_from,
+        date_to=payload.date_to,
+        consent_mode=payload.consent_mode,
+        fetch_type=payload.fetch_type,
+    )
+
+
+@app.post("/aa/consent/verify-otp")
+async def verify_aa_otp(payload: AAOtpVerifyRequest):
+    res = verify_otp(consent_handle=payload.consent_handle, otp=payload.otp)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "OTP verification failed"))
+    return res
+
+
+@app.get("/aa/consent/{handle}/status")
+async def check_aa_status(handle: str):
+    return get_consent_status(handle)
+
+
+@app.post("/aa/fetch")
+async def fetch_aa_data(payload: AADataFetchRequest):
+    records = fetch_rebit_transactions(consent_id=payload.consent_id, fip_id=payload.fip_id)
+    
+    # Discover/add bank account in accounts table if not present
+    fip_name = payload.fip_id.replace("FIP-", "") + " Bank"
+    existing_accounts = await crud.list_accounts()
+    matching_acc = next((a for a in existing_accounts if payload.fip_id.replace("FIP-", "").lower() in a.get("name", "").lower()), None)
+    
+    if not matching_acc:
+        await crud.create_account({
+            "name": f"{payload.fip_id.replace('FIP-', '')} Savings",
+            "account_type": "savings",
+            "institution": fip_name,
+            "opening_balance": 48320.50 if "HDFC" in payload.fip_id else 64200.00 if "SBI" in payload.fip_id else 32150.75,
+        })
+
+    # Batch save direct bank transactions with automatic duplicate prevention
+    batch_res = await crud.create_batch_transactions(records)
+    return {
+        "success": True,
+        "fip_id": payload.fip_id,
+        "created_count": batch_res["created_count"],
+        "skipped_count": batch_res["skipped_count"],
+        "transactions": records,
+        "message": f"Successfully synced {batch_res['created_count']} direct bank transactions via RBI Account Aggregator.",
+    }
+
+
+@app.post("/statements/upload")
+async def upload_bank_statement(
+    file: UploadFile = File(...),
+    password: Optional[str] = Form(None),
+):
+    content = await file.read()
+    filename = file.filename or "statement"
+    
+    try:
+        if filename.lower().endswith(".pdf"):
+            parsed_txns, bank_detected = parse_pdf_statement(content, password=password)
+        else:
+            parsed_txns, bank_detected = parse_csv_statement(content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not parse bank statement: {e}")
+
+    if not parsed_txns:
+        return {
+            "success": False,
+            "bank_detected": bank_detected,
+            "total_parsed": 0,
+            "created_count": 0,
+            "skipped_count": 0,
+            "transactions": [],
+            "message": "No valid transaction lines detected in statement file. Ensure this is an official bank statement export.",
+        }
+
+    batch_res = await crud.create_batch_transactions(parsed_txns)
+    return {
+        "success": True,
+        "bank_detected": bank_detected,
+        "total_parsed": len(parsed_txns),
+        "created_count": batch_res["created_count"],
+        "skipped_count": batch_res["skipped_count"],
+        "transactions": parsed_txns,
+        "message": f"Directly imported {batch_res['created_count']} transactions from {bank_detected} statement ({batch_res['skipped_count']} duplicate records skipped).",
+    }
+
 

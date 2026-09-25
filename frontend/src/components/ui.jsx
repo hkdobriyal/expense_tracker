@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { categories, kindDetails, kinds, paymentMethods } from '../lib/constants'
 import { categoryColor, money, monthLabel, shortDate } from '../lib/format'
-
 import { playClick } from '../lib/sound'
 
 export function Icon({ children, name }) {
@@ -14,10 +13,15 @@ export function Icon({ children, name }) {
       </svg>
     )
   }
-  if (name === 'autosync' || children === '⚡') {
+  if (name === 'autosync' || children === '🏦' || children === '⚡') {
     return (
       <svg className="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="#7ef0c2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        <line x1="3" x2="21" y1="22" y2="22" />
+        <line x1="6" x2="6" y1="11" y2="18" />
+        <line x1="10" x2="10" y1="11" y2="18" />
+        <line x1="14" x2="14" y1="11" y2="18" />
+        <line x1="18" x2="18" y1="11" y2="18" />
+        <polygon points="12 2 20 7 4 7" />
       </svg>
     )
   }
@@ -81,7 +85,6 @@ export function Icon({ children, name }) {
   return <span className="nav-icon">{children}</span>
 }
 
-
 export function BackgroundParticles({ particles }) {
   return (
     <div className="starfield" aria-hidden="true">
@@ -101,6 +104,49 @@ export function BackgroundParticles({ particles }) {
         />
       ))}
     </div>
+  )
+}
+
+// Interactive 3D Tilt Card with physics spring & perspective sheen
+export function TiltCard({ children, className = '', ...props }) {
+  const x = useMotionValue(0)
+  const y = useMotionValue(0)
+  const mouseX = useSpring(x, { stiffness: 280, damping: 24 })
+  const mouseY = useSpring(y, { stiffness: 280, damping: 24 })
+
+  function handleMouseMove(event) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const width = rect.width
+    const height = rect.height
+    const mouseXFromCenter = event.clientX - rect.left - width / 2
+    const mouseYFromCenter = event.clientY - rect.top - height / 2
+    x.set(mouseXFromCenter / (width / 2))
+    y.set(mouseYFromCenter / (height / 2))
+  }
+
+  function handleMouseLeave() {
+    x.set(0)
+    y.set(0)
+  }
+
+  const rotateX = useTransform(mouseY, [-1, 1], [7, -7])
+  const rotateY = useTransform(mouseX, [-1, 1], [-7, 7])
+
+  return (
+    <motion.div
+      className={`tilt-card-container ${className}`}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{
+        rotateX,
+        rotateY,
+        transformStyle: 'preserve-3d',
+      }}
+      whileHover={{ y: -4, transition: { duration: 0.15 } }}
+      {...props}
+    >
+      {children}
+    </motion.div>
   )
 }
 
@@ -383,25 +429,25 @@ export function TrendChart({ series }) {
 export function MetricCards({ expenses, income, investments, cashflow, count, healthScore, burnRate }) {
   return (
     <section className="metric-grid four">
-      <motion.div className="metric-card featured" whileHover={{ y: -4, scale: 1.01 }}>
+      <TiltCard className="metric-card featured">
         <span className="metric-label">SPENDS TRACKED</span>
         <strong><AnimatedNumber value={expenses} /></strong>
         <div className="metric-foot">
           <span className="trend-up">INR · ₹</span> Across {count} transactions
         </div>
         <div className="sparkline"><i /><i /><i /><i /><i /><i /><i /><i /></div>
-      </motion.div>
-      <motion.div className="metric-card" whileHover={{ y: -4, scale: 1.01 }}>
+      </TiltCard>
+      <TiltCard className="metric-card">
         <span className="metric-label">INCOME</span>
         <strong><AnimatedNumber value={income} /></strong>
         <div className="metric-foot">Salary, refunds and inflow</div>
-      </motion.div>
-      <motion.div className="metric-card" whileHover={{ y: -4, scale: 1.01 }}>
+      </TiltCard>
+      <TiltCard className="metric-card">
         <span className="metric-label">INVESTED</span>
         <strong><AnimatedNumber value={investments} /></strong>
         <div className="metric-foot">SIPs, funds and deposits</div>
-      </motion.div>
-      <motion.div className="metric-card" whileHover={{ y: -4, scale: 1.01 }}>
+      </TiltCard>
+      <TiltCard className="metric-card">
         <span className="metric-label">CASHFLOW</span>
         <strong className={cashflow >= 0 ? 'positive' : 'negative'}><AnimatedNumber value={cashflow} /></strong>
         <div className="metric-foot">
@@ -413,11 +459,10 @@ export function MetricCards({ expenses, income, investments, cashflow, count, he
             'Spending ahead of income'
           )}
         </div>
-      </motion.div>
+      </TiltCard>
     </section>
   )
 }
-
 
 export function PanelHeading({ kicker, title, action }) {
   return (
@@ -487,5 +532,72 @@ export function ConfirmDialog({ title, copy, confirmLabel, onConfirm, onCancel }
         </div>
       </motion.div>
     </motion.div>
+  )
+}
+
+export function KeyboardShortcutsModal({ onClose }) {
+  return (
+    <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div className="capture-modal shortcuts-modal" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
+        <div className="shortcuts-modal-header">
+          <div>
+            <span className="section-kicker">KEYBOARD ENGINE</span>
+            <h2>⚡ Power Shortcuts</h2>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Close shortcuts">✕</button>
+        </div>
+        <div className="shortcuts-list">
+          <div className="shortcut-item">
+            <span>New Transaction</span>
+            <kbd>N</kbd>
+          </div>
+          <div className="shortcut-item">
+            <span>Auto-Sync Hub (SMS & CSV)</span>
+            <kbd>S</kbd>
+          </div>
+          <div className="shortcut-item">
+            <span>Command Palette / Search</span>
+            <kbd>Ctrl</kbd>+<kbd>K</kbd>
+          </div>
+          <div className="shortcut-item">
+            <span>Toggle Sound Audio</span>
+            <kbd>M</kbd>
+          </div>
+          <div className="shortcut-item">
+            <span>Fast View Switching</span>
+            <kbd>1</kbd> – <kbd>7</kbd>
+          </div>
+          <div className="shortcut-item">
+            <span>Close Modal / Drawer</span>
+            <kbd>Esc</kbd>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+export function PwaInstallPill({ installPrompt, onInstall, isOnline }) {
+  return (
+    <div className="pwa-status-group">
+      <div className={`network-badge ${isOnline ? 'online' : 'offline'}`} title={isOnline ? 'Live Network Connected' : 'Offline Mode (Local-First Active)'}>
+        <span className="network-dot" />
+        <span className="network-text">{isOnline ? 'Online' : 'Offline'}</span>
+      </div>
+      {installPrompt && (
+        <motion.button
+          className="pwa-install-btn"
+          onClick={onInstall}
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title="Install Ledgerly as a native Desktop or Mobile App"
+        >
+          <span className="install-icon">📲</span>
+          <span>Install PWA</span>
+        </motion.button>
+      )}
+    </div>
   )
 }

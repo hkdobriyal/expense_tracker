@@ -17,10 +17,13 @@ import {
   SpendingBars,
   TransactionRow,
   TrendChart,
+  KeyboardShortcutsModal,
+  PwaInstallPill,
 } from './components/ui'
 import { ThreeDCore } from './components/ThreeDCore'
-import { AutoSyncHub } from './components/AutoSyncHub'
+import { AccountAggregatorHub } from './components/AccountAggregatorHub'
 import { playChime, playClick, isSoundEnabled, setSoundEnabled } from './lib/sound'
+import { fireCelebrationConfetti, fireGoldBurst } from './lib/confetti'
 
 const emptyForm = () => ({
   title: '',
@@ -76,6 +79,9 @@ export default function App() {
   const [confirm, setConfirm] = useState(null)
   const [commandOpen, setCommandOpen] = useState(false)
   const [commandQuery, setCommandQuery] = useState('')
+  const [deferredPrompt, setDeferredPrompt] = useState(null)
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const restoreInput = useRef(null)
   const months = useMemo(() => lastMonths(8), [])
   const particles = useMemo(() => Array.from({ length: 28 }, (_, index) => ({
@@ -124,6 +130,25 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const handleBeforeInstall = (e) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall)
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  useEffect(() => {
     const onKey = (event) => {
       const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -135,13 +160,35 @@ export default function App() {
         setShowCapture(false)
         setResourceModal('')
         setCommandOpen(false)
+        setShortcutsOpen(false)
         setConfirm(null)
       }
-      if (!typing && event.key.toLowerCase() === 'n') openCapture()
+      if (!typing) {
+        if (event.key === '?') {
+          setShortcutsOpen((o) => !o)
+        } else if (event.key.toLowerCase() === 'n') {
+          openCapture()
+        } else if (event.key.toLowerCase() === 's') {
+          playClick()
+          setActiveView('autosync')
+        } else if (event.key.toLowerCase() === 'm') {
+          const next = !soundActive
+          setSoundActive(next)
+          setSoundEnabled(next)
+          if (next) playChime()
+        } else if (['1', '2', '3', '4', '5', '6', '7'].includes(event.key)) {
+          const views = ['overview', 'transactions', 'accounts', 'investments', 'budgets', 'bills', 'goals']
+          const idx = parseInt(event.key, 10) - 1
+          if (views[idx]) {
+            playClick()
+            setActiveView(views[idx])
+          }
+        }
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [soundActive])
 
   function openCapture(kind = 'expense') {
     setEditingTransaction(null)
@@ -168,6 +215,8 @@ export default function App() {
       const response = await saveTransaction(payload, editingTransaction?.id)
       setItems((current) => (editingTransaction ? current.map((item) => (item.id === editingTransaction.id ? response.data : item)) : [response.data, ...current]))
       closeCapture()
+      playChime()
+      fireCelebrationConfetti()
       setToast(editingTransaction ? 'Transaction updated' : 'Added to your ledger')
     } catch {
       setError('Could not save this transaction. Check that the API is running.')
@@ -215,6 +264,8 @@ export default function App() {
       setResourceModal('')
       setEditingResource(null)
       setResourceForm(emptyResource())
+      playChime()
+      fireGoldBurst()
       setToast(`${resourceModal} ${editingResource ? 'updated' : 'created'}`)
     } catch {
       setError(`Could not save this ${resourceModal}.`)
@@ -392,6 +443,23 @@ export default function App() {
           <button className="mobile-brand brand" onClick={() => { playClick(); setActiveView('overview') }}><span className="brand-mark">+</span><span>ledgerly</span></button>
           <div className="topbar-title">{navItems.find((item) => item.id === activeView)?.label || 'Settings'}</div>
           <div className="topbar-actions">
+            <PwaInstallPill
+              installPrompt={deferredPrompt}
+              onInstall={async () => {
+                if (!deferredPrompt) return
+                deferredPrompt.prompt()
+                const { outcome } = await deferredPrompt.userChoice
+                if (outcome === 'accepted') {
+                  setDeferredPrompt(null)
+                  playChime()
+                  fireCelebrationConfetti()
+                }
+              }}
+              isOnline={isOnline}
+            />
+            <button className="shortcuts-trigger-btn" onClick={() => { playClick(); setShortcutsOpen(true) }} title="Keyboard shortcuts (?)">
+              ⚡ <span className="shortcuts-btn-text">Shortcuts</span>
+            </button>
             <button className="icon-button notification" onClick={() => { playClick(); setCommandOpen(true) }} aria-label="Search">⌕</button>
             <button className="top-add" onClick={() => { playClick(); openCapture() }}>+ <span>Add transaction</span></button>
           </div>
@@ -470,11 +538,11 @@ export default function App() {
             )}
             {activeView === 'autosync' && (
               <motion.div key="autosync" className="view" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
-                <AutoSyncHub
+                <AccountAggregatorHub
                   advancedAnalytics={advancedAnalytics}
                   onTransactionAdded={(txn) => {
                     loadWorkspace()
-                    setToast(txn ? `Synced: ${txn.title} · ${money(txn.amount)}` : 'Workspace updated')
+                    setToast(txn ? `Direct Bank Sync: ${txn.title} · ${money(txn.amount)}` : 'Direct bank statement synced!')
                     playChime()
                   }}
                 />
@@ -770,6 +838,9 @@ export default function App() {
             }}
           />
         )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {shortcutsOpen && <KeyboardShortcutsModal onClose={() => setShortcutsOpen(false)} />}
       </AnimatePresence>
       <AnimatePresence>{toast && <motion.div className="toast" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>{toast}</motion.div>}</AnimatePresence>
     </div>

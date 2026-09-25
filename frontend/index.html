@@ -1,13 +1,22 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0b1220" />
-    <meta name="description" content="Ledgerly is a mobile-friendly personal expense tracker for Indian spending, bills, budgets, goals, and investments." />
+    <meta name="description" content="Ledgerly Personal Finance OS: Ultra-interactive privacy-first expense tracker with zero-touch Indian UPI & bank sync, 3D analytics, budgets, and investments." />
+    
+    <!-- PWA & Mobile Web App Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Ledgerly" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <title>Ledgerly</title>
+    <link rel="alternate icon" href="/icon-192.png" type="image/png" />
+
+    <title>Ledgerly | Personal Finance OS</title>
   </head>
   <body>
     <div id="root"></div>
@@ -15,7 +24,18 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {})
+          navigator.serviceWorker.register('/sw.js').then((reg) => {
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('[Ledgerly PWA] New version available')
+                  }
+                })
+              }
+            })
+          }).catch(() => {})
         })
       }
     </script>

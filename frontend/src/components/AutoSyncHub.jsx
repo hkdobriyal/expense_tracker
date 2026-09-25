@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { parseSMSText, syncSMSWebhook, importBatchTransactions } from '../lib/api'
 import { money, shortDate } from '../lib/format'
 import { playChime, playClick, playCoin } from '../lib/sound'
+import { fireCelebrationConfetti, fireGoldBurst } from '../lib/confetti'
 
 const SAMPLE_PRESETS = [
   {
@@ -75,6 +76,7 @@ export function AutoSyncHub({ onTransactionAdded, advancedAnalytics }) {
       setSimulating(preset.id)
       const res = await syncSMSWebhook(preset.sms)
       playChime()
+      fireCelebrationConfetti()
       if (onTransactionAdded) {
         onTransactionAdded(res.data.transaction)
       }
@@ -114,6 +116,7 @@ export function AutoSyncHub({ onTransactionAdded, advancedAnalytics }) {
       setParsing(true)
       const res = await syncSMSWebhook(parsedPreview.raw_text || smsInput)
       playChime()
+      fireGoldBurst()
       if (onTransactionAdded) {
         onTransactionAdded(res.data.transaction)
       }
@@ -186,6 +189,7 @@ export function AutoSyncHub({ onTransactionAdded, advancedAnalytics }) {
       playClick()
       const res = await importBatchTransactions(csvPreview)
       playChime()
+      fireCelebrationConfetti()
       setImportSummary(res.data)
       setCsvPreview([])
       setCsvFile(null)

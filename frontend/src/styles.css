@@ -677,3 +677,775 @@
   }
 }
 
+/* --- Interactive 3D Canvas Controls & Controls Row --- */
+.three-d-controls-row {
+  position: absolute;
+  bottom: 12px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  z-index: 10;
+}
+
+.three-d-shockwave-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(14, 28, 48, 0.75);
+  border: 1px solid rgba(126, 240, 194, 0.35);
+  color: #7ef0c2;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 6px 12px;
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+}
+
+.three-d-shockwave-pill:hover {
+  background: rgba(22, 48, 78, 0.9);
+  border-color: #7ef0c2;
+  box-shadow: 0 0 16px rgba(126, 240, 194, 0.4);
+  transform: translateY(-1px);
+}
+
+.three-d-shockwave-pill:active {
+  transform: scale(0.95);
+}
+
+/* --- 3D Physics Tilt Card Container --- */
+.tilt-card-container {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* --- PWA Network Badge & Install Button --- */
+.pwa-status-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.network-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: rgba(14, 24, 38, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.network-badge.online {
+  color: #7ef0c2;
+  border-color: rgba(126, 240, 194, 0.25);
+}
+
+.network-badge.offline {
+  color: #ff8fab;
+  border-color: rgba(255, 143, 171, 0.25);
+}
+
+.network-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.network-badge.online .network-dot {
+  background: #7ef0c2;
+  box-shadow: 0 0 8px #7ef0c2;
+}
+
+.network-badge.offline .network-dot {
+  background: #ff8fab;
+  box-shadow: 0 0 8px #ff8fab;
+}
+
+.pwa-install-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(126, 240, 194, 0.2) 0%, rgba(138, 230, 255, 0.2) 100%);
+  border: 1px solid rgba(126, 240, 194, 0.4);
+  color: #edf6ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(126, 240, 194, 0.2);
+  transition: all 0.2s ease;
+}
+
+.pwa-install-btn:hover {
+  background: linear-gradient(135deg, rgba(126, 240, 194, 0.35) 0%, rgba(138, 230, 255, 0.35) 100%);
+  border-color: #7ef0c2;
+  box-shadow: 0 0 20px rgba(126, 240, 194, 0.45);
+  transform: translateY(-1px);
+}
+
+/* --- Shortcuts Trigger Button --- */
+.shortcuts-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #9bb0c4;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.shortcuts-trigger-btn:hover {
+  color: #edf6ff;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 680px) {
+  .shortcuts-btn-text {
+    display: none;
+  }
+}
+
+/* --- Keyboard Shortcuts Modal --- */
+.shortcuts-modal {
+  max-width: 440px;
+  background: #0f1726;
+  border: 1px solid rgba(138, 230, 255, 0.25);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(138, 230, 255, 0.15);
+}
+
+.shortcuts-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.shortcuts-modal-header h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #edf6ff;
+}
+
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+  color: #c5d7e8;
+}
+
+.shortcut-item kbd {
+  display: inline-block;
+  padding: 3px 8px;
+  font: 11px/1.3 'DM Mono', monospace;
+  font-weight: 700;
+  color: #7ef0c2;
+  background: rgba(14, 28, 48, 0.85);
+  border: 1px solid rgba(126, 240, 194, 0.3);
+  border-radius: 6px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* --- RBI Account Aggregator & Direct Statement Styles --- */
+.rbi-shield-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(126, 240, 194, 0.1);
+  border: 1px solid rgba(126, 240, 194, 0.35);
+  color: #7ef0c2;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 5px 12px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+  box-shadow: 0 0 14px rgba(126, 240, 194, 0.15);
+}
+
+.aa-connect-panel {
+  padding: 28px;
+}
+
+.aa-steps-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.step-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6a7f94;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.step-node.active {
+  color: #edf6ff;
+}
+
+.step-node .node-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 12px 'DM Mono', monospace;
+  font-weight: 700;
+}
+
+.step-node.active .node-num {
+  background: #7ef0c2;
+  color: #0b1220;
+  border-color: #7ef0c2;
+  box-shadow: 0 0 12px rgba(126, 240, 194, 0.5);
+}
+
+.step-connector {
+  flex: 1;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0 12px;
+}
+
+.step-subtitle {
+  color: #9bb0c4;
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+/* FIP Grid */
+.fip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.fip-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.fip-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(138, 230, 255, 0.3);
+}
+
+.fip-card.selected {
+  background: rgba(14, 30, 52, 0.7);
+  border-color: #7ef0c2;
+  box-shadow: 0 0 16px rgba(126, 240, 194, 0.2);
+}
+
+.fip-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.fip-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.fip-info strong {
+  font-size: 14px;
+  color: #edf6ff;
+}
+
+.fip-info small {
+  font-size: 11px;
+  color: #7f93a8;
+}
+
+.fip-check {
+  margin-left: auto;
+  color: #7ef0c2;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+/* Mobile & Consent form */
+.aa-mobile-form {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mobile-input-wrap {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.country-code {
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  font: 13px 'DM Mono', monospace;
+  color: #8ae6ff;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mobile-input-wrap input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 12px 14px;
+  font: 15px 'DM Mono', monospace;
+  color: #edf6ff;
+  outline: none;
+}
+
+.consent-terms-notice {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(14, 28, 48, 0.6);
+  border: 1px solid rgba(138, 230, 255, 0.2);
+}
+
+.consent-terms-notice .lock-icon {
+  font-size: 20px;
+}
+
+.consent-terms-notice strong {
+  display: block;
+  font-size: 13px;
+  color: #8ae6ff;
+  margin-bottom: 2px;
+}
+
+.consent-terms-notice small {
+  font-size: 11px;
+  color: #9bb0c4;
+  line-height: 1.4;
+}
+
+/* OTP Box */
+.otp-box {
+  max-width: 440px;
+}
+
+.otp-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 20px 0;
+}
+
+.otp-field {
+  width: 100%;
+  padding: 16px;
+  font: 24px 'DM Mono', monospace;
+  letter-spacing: 0.35em;
+  text-align: center;
+  color: #7ef0c2;
+  background: rgba(14, 28, 48, 0.85);
+  border: 1px solid rgba(126, 240, 194, 0.4);
+  border-radius: 14px;
+  box-shadow: 0 0 20px rgba(126, 240, 194, 0.15);
+  outline: none;
+}
+
+.otp-helper-badge {
+  font-size: 11px;
+  color: #8ae6ff;
+  text-align: center;
+}
+
+.otp-helper-badge code {
+  color: #ffd8a8;
+  font-weight: 700;
+}
+
+.otp-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Discovered Accounts */
+.discovered-accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.discovered-card {
+  padding: 18px;
+  border-radius: 14px;
+  background: rgba(14, 28, 48, 0.7);
+  border: 1px solid rgba(126, 240, 194, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.discovered-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.bank-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(138, 230, 255, 0.15);
+  color: #8ae6ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.type-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #c5d7e8;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.acc-bal {
+  margin-left: auto;
+  font: 18px 'DM Mono', monospace;
+  color: #7ef0c2;
+}
+
+.discovered-body {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  font-size: 12px;
+  color: #9bb0c4;
+}
+
+.discovered-body b {
+  color: #edf6ff;
+  font-family: 'DM Mono', monospace;
+}
+
+.stream-action-box .primary-button.large {
+  padding: 14px 24px;
+  font-size: 15px;
+  width: 100%;
+}
+
+/* Sync Success Box */
+.success-box {
+  text-align: center;
+  padding: 36px 20px;
+}
+
+.success-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(126, 240, 194, 0.15);
+  border: 2px solid #7ef0c2;
+  color: #7ef0c2;
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  box-shadow: 0 0 24px rgba(126, 240, 194, 0.4);
+}
+
+.sync-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 24px 0;
+}
+
+.sync-stat {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sync-stat span {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #7f93a8;
+  margin-bottom: 6px;
+}
+
+.sync-stat strong {
+  font: 20px 'DM Mono', monospace;
+  color: #edf6ff;
+}
+
+/* Statement PDF/CSV Dropzone */
+.statement-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  border-radius: 16px;
+  border: 2px dashed rgba(138, 230, 255, 0.35);
+  background: rgba(14, 28, 48, 0.4);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  margin-bottom: 20px;
+}
+
+.statement-dropzone:hover {
+  background: rgba(14, 28, 48, 0.7);
+  border-color: #7ef0c2;
+  box-shadow: 0 0 20px rgba(126, 240, 194, 0.2);
+}
+
+.pdf-password-wrap {
+  margin: 16px 0;
+  max-width: 440px;
+}
+
+.pdf-password-wrap label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #c5d7e8;
+}
+
+.pdf-password-wrap input {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #edf6ff;
+  font: 14px 'DM Mono', monospace;
+  outline: none;
+}
+
+.password-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #9bb0c4;
+  line-height: 1.4;
+}
+
+.statement-action-row {
+  margin-top: 14px;
+}
+
+.statement-results-wrap {
+  margin-top: 24px;
+}
+
+/* AA Mode Switch & Sandbox Notice Card */
+.aa-mode-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.mode-badge.sandbox {
+  background: rgba(255, 216, 168, 0.12);
+  border: 1px solid rgba(255, 216, 168, 0.35);
+  color: #ffd8a8;
+}
+
+.mode-badge.sandbox .mode-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffd8a8;
+  box-shadow: 0 0 6px #ffd8a8;
+}
+
+.mode-badge.live {
+  background: rgba(126, 240, 194, 0.15);
+  border: 1px solid rgba(126, 240, 194, 0.4);
+  color: #7ef0c2;
+}
+
+.mode-badge.live .mode-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #7ef0c2;
+  box-shadow: 0 0 6px #7ef0c2;
+}
+
+.aa-config-trigger {
+  font-size: 11px;
+  color: #8ae6ff;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.sandbox-info-card {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(14, 28, 48, 0.85);
+  border: 1px solid rgba(138, 230, 255, 0.3);
+  margin-bottom: 20px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #c5d7e8;
+}
+
+.sandbox-info-card .info-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8ae6ff;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.sandbox-info-card p {
+  margin: 4px 0 8px;
+}
+
+.sandbox-info-card code {
+  color: #7ef0c2;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'DM Mono', monospace;
+}
+
+.sandbox-info-card small {
+  display: block;
+  color: #ffd8a8;
+  margin-top: 6px;
+}
+
+/* Config Modal */
+.config-modal {
+  max-width: 500px;
+  background: #0d1726;
+  border: 1px solid rgba(138, 230, 255, 0.3);
+  border-radius: 20px;
+  padding: 24px;
+}
+
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.config-info-text {
+  font-size: 13px;
+  color: #9bb0c4;
+  line-height: 1.5;
+}
+
+.config-info-text a {
+  color: #7ef0c2;
+}
+
+.config-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #edf6ff;
+}
+
+.config-form input, .config-form select {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #edf6ff;
+  font: 14px 'DM Mono', monospace;
+  outline: none;
+}
+
+.config-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+
+
+

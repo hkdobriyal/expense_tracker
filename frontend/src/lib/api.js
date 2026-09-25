@@ -31,7 +31,7 @@ export function deleteTransaction(id) {
 }
 
 export function saveResource(route, payload, id) {
-  return id ? axios.put(`${API}/${route}/${id}`, payload) : axios.post(`${API}/${route}/${id}`, payload)
+  return id ? axios.put(`${API}/${route}/${id}`, payload) : axios.post(`${API}/${route}`, payload)
 }
 
 export function deleteResource(route, id) {
@@ -57,3 +57,40 @@ export function importBatchTransactions(transactions) {
 export function fetchAdvancedAnalytics() {
   return axios.get(`${API}/analytics/advanced`)
 }
+
+// --- RBI Account Aggregator (AA) & Direct Statement APIs ---
+
+export function fetchFIPs() {
+  return axios.get(`${API}/aa/fips`)
+}
+
+export function createAAConsent(payload) {
+  return axios.post(`${API}/aa/consent`, payload)
+}
+
+export function verifyAAOtp(payload) {
+  return axios.post(`${API}/aa/consent/verify-otp`, payload)
+}
+
+export function checkAAStatus(handle) {
+  return axios.get(`${API}/aa/consent/${handle}/status`)
+}
+
+export function fetchAAData(payload) {
+  return axios.post(`${API}/aa/fetch`, payload)
+}
+
+export function uploadBankStatement(formData) {
+  return axios.post(`${API}/statements/upload`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+export function getAAConfig() {
+  return axios.get(`${API}/aa/config`)
+}
+
+export function saveAAConfig(payload) {
+  return axios.post(`${API}/aa/config`, payload)
+}
+

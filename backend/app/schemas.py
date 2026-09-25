@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Literal, Optional
+from typing import Literal, Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -73,3 +73,35 @@ class SyncWebhookPayload(BaseModel):
     sender: Optional[str] = None
     timestamp: Optional[str] = None
 
+
+# --- RBI Account Aggregator (AA) Models (ReBIT Specifications) ---
+
+class AAConsentRequest(BaseModel):
+    fip_id: str = Field(..., example="FIP-HDFC")
+    mobile_number: str = Field(..., example="9876543210")
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    consent_mode: str = "STORE"
+    fetch_type: str = "PERIODIC"
+
+
+class AAOtpVerifyRequest(BaseModel):
+    consent_handle: str
+    otp: str
+
+
+class AADataFetchRequest(BaseModel):
+    consent_id: str
+    fip_id: str
+    account_ids: Optional[List[str]] = None
+
+
+class StatementUploadResponse(BaseModel):
+    success: bool
+    bank_detected: str
+    total_parsed: int
+    created_count: int
+    skipped_count: int
+    transactions: List[Dict[str, Any]]
+    account_summary: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None

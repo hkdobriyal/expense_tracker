@@ -52,7 +52,7 @@ export const accountTypes = ['savings', 'current', 'cash', 'credit', 'wallet', '
 
 export const navItems = [
   { id: 'overview', label: 'Overview', icon: '⌂', hint: 'Dashboard' },
-  { id: 'autosync', label: 'Auto-Sync & UPI', icon: '⚡', hint: 'Live Sync' },
+  { id: 'autosync', label: 'Bank Direct (AA)', icon: '🏦', hint: 'RBI Account Aggregator' },
   { id: 'transactions', label: 'Transactions', icon: '↕', hint: 'Ledger' },
   { id: 'accounts', label: 'Accounts', icon: '▣', hint: 'Wallets' },
   { id: 'investments', label: 'Investments', icon: '◈', hint: 'Portfolio' },
