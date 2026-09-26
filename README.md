@@ -1,59 +1,90 @@
-# Ledgerly Personal Finance OS
+# Ledgerly – personal finance, local-first
 
-A privacy-first, local-first personal finance workspace for Indian expenses and investments.
+A personal finance and expense tracker you run on your own machine: accounts, transactions, budgets, goals,
+bills, subscriptions, analytics, cash flow, net worth, statement import, bank-sync architecture, and a rule-based
+alert engine with in-app and email notifications. Built for India (INR, UPI, Indian bank statements and SMS),
+with multi-currency support. Every number on screen is calculated from your data. There are no hard-coded or
+random values.
 
-## What is implemented
+It is also a learning project: the code is small enough to read end to end, and `docs/` explains the decisions.
 
-- INR base currency with `en-IN` formatting
-- Expenses, income, investments, transfers-ready transaction model
-- Indian categories, UPI/cards/cash/net banking payment methods
-- Merchants, notes, dates, recurring transaction flag
-- Dashboard metrics, category analytics, search, filters, animated UI, and 3D visual
-- Accounts, budgets, goals, bills, investments view, and dashboard summary APIs
-- CSV transaction export and complete JSON backup
-- SQLite persistence with automatic schema migration
-- FastAPI OpenAPI documentation
+## Stack (all free & open source)
 
-## Local-first architecture decision
+| Layer | Choice | Why |
+|---|---|---|
+| API | **FastAPI** + Pydantic | Kept from v1; typed, fast, auto-generated docs at `/api/docs` |
+| Database | **SQLite** by default, **PostgreSQL** via `DATABASE_URL` | Zero setup today; portable types so Postgres is a config change |
+| ORM / migrations | **SQLAlchemy 2** + **Alembic** | Real migrations, constraints, indexes, transactions |
+| Background jobs | DB-backed queue + `python -m app.worker` | No Redis needed; survives restarts; easy to inspect |
+| Frontend | **React 18** + **Vite** | Kept from v1 |
+| Data fetching | **TanStack Query** | Every write refreshes all derived numbers |
+| Charts / icons / motion / 3D | **Recharts**, **Lucide**, **Framer Motion**, **React Three Fiber** | 3D only in the dashboard hero and login |
+| Tests | **pytest** (58 API tests), **Playwright** (E2E in your local Edge) | |
 
-The supplied architecture proposes PostgreSQL, Valkey, workers, OCR, Ollama, and Docker. They are intentionally not mandatory in the current personal build:
+## Quick start (Windows)
 
-- SQLite is the zero-setup local database. It keeps the app free and private on Windows.
-- FastAPI and Pydantic provide the API and validation boundary.
-- React, Vite, Framer Motion, and React Three Fiber provide the interactive UI.
-- External bank sync, cloud AI, cloud analytics, and paid services are not used.
-- The backend entities are separated enough to migrate to SQLAlchemy/PostgreSQL when multi-user or family deployment becomes necessary.
-
-## Run
-
-Backend:
+Prerequisites: Python 3.11+ and Node 20+.
 
 ```powershell
-cd backend
-.\myvenv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+powershell -ExecutionPolicy Bypass -File scripts\dev.ps1
 ```
 
-Frontend:
+This creates `backend\.venv`, installs dependencies, and opens three windows: the API (:8000), the worker, and
+the web app at **http://localhost:5173**. The first account you create becomes the owner. Registration then
+closes, because this is a single-user installation. To look around without entering data, click
+**Try the demo workspace**.
+
+Manual start:
 
 ```powershell
-cd frontend
-npm install
-npm run dev
+cd backend;  python -m venv .venv;  .\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000     # terminal 1
+.\.venv\Scripts\python -m app.worker                                   # terminal 2
+cd ..\frontend;  npm install;  npm run dev                             # terminal 3
 ```
 
-Open `http://localhost:5173`.
+**Where is my data?** By default it's in `%LOCALAPPDATA%\Ledgerly`: the SQLite database, uploaded receipts,
+and generated keys. This is deliberately outside the OneDrive-synced source folder. You can override it with
+`DATA_DIR`.
 
-## Backups
+## Configuration
 
-Use Settings in the UI, or download directly:
+Copy `backend/.env.example` to `backend/.env`. Every value is optional locally. See
+[docs/local-development.md](docs/local-development.md).
 
-- `http://localhost:8000/transactions/export.csv`
-- `http://localhost:8000/backup.json`
+## Tests
 
-Keep backups outside the repository if the data is sensitive.
+```powershell
+cd backend;  .\.venv\Scripts\python -m pytest            # 58 API tests, ~20 s
+cd frontend; npx playwright test                         # needs the stack running on a throwaway DATA_DIR
+```
 
-## Deliberate next phases
+## What works, and what needs something from you
 
-Authentication, PostgreSQL/SQLAlchemy migration, import preview and duplicate detection, receipt/document storage, portfolio holdings and valuations, offline IndexedDB sync, PWA packaging, and optional local Ollama/OCR adapters should be added only when their workflows are needed. They are not faked as complete features in this personal build.
+| Feature | Status |
+|---|---|
+| Accounts, transactions (expense/income/transfer/refund/adjustment/investment), splits, tags, receipts | ✅ |
+| Search, filters, pagination, bulk actions, review queue, command palette (Ctrl K), quick add (N) | ✅ |
+| Categories, smart rules (contains/equals/starts/ends/regex, amount, account), merchant learning | ✅ |
+| Budgets (weekly/monthly/yearly/custom), goals, bills, subscriptions (+ detection), recurring | ✅ |
+| Dashboard, analytics, cash flow, net worth history, deterministic insights | ✅ |
+| Statement import: CSV, XLSX, OFX/QFX, text PDFs, with preview, mapping, dedupe and undo | ✅ |
+| Bank SMS parsing: paste, or forward via an authenticated webhook | ✅ |
+| Alert engine: 19 metrics, cooldowns, per-rule channels, history with delivery status | ✅ |
+| In-app notifications | ✅ |
+| Email | ✅ via any SMTP server (Mailpit locally); without SMTP, emails are logged, not sent |
+| Reports: CSV / Excel / print-to-PDF; JSON backup & restore (reads v1 backups too) | ✅ |
+| Demo mode (isolated workspace + sandbox bank through the real sync pipeline) | ✅ |
+| **Live bank sync (India)** | ⛔ Needs an RBI Account Aggregator FIU licence. See [docs/bank-integration.md](docs/bank-integration.md) |
+| SMS / WhatsApp delivery | 🟡 Mock adapters. Real providers cost money; see [docs/costs.md](docs/costs.md) |
+| Push notifications, OCR, AI assistant | 🟡 Not built yet. Architecture leaves room ([docs/architecture.md](docs/architecture.md#roadmap)) |
+
+## Documentation
+
+- [docs/audit.md](docs/audit.md): what the v1 app contained and what was kept, improved, replaced or removed
+- [docs/architecture.md](docs/architecture.md): layers, the financial engine, decisions and trade-offs
+- [docs/database.md](docs/database.md): schema, money representation, migrations, SQLite vs PostgreSQL
+- [docs/alerts.md](docs/alerts.md) · [docs/notifications.md](docs/notifications.md)
+- [docs/bank-integration.md](docs/bank-integration.md): provider interface, sync pipeline, India options
+- [docs/security.md](docs/security.md) · [docs/costs.md](docs/costs.md)
+- [docs/local-development.md](docs/local-development.md) · [docs/deployment.md](docs/deployment.md)

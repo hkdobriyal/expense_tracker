@@ -1,11 +1,10 @@
-# Expense Tracker — Frontend
+# Ledgerly web app
 
-Install and run:
+React 18 + Vite + TanStack Query + React Router + Recharts. See the root README.
 
-```bash
-cd frontend
+```powershell
 npm install
-npm run dev
+npm run dev        # http://localhost:5173 (proxies /api to :8000)
+npm run build
+npm run test:e2e   # Playwright against a running stack with an empty DATA_DIR
 ```
-
-The frontend expects the backend at `http://localhost:8000` by default.

@@ -37,3 +37,12 @@ Thumbs.db
 .mypy_cache/
 .coverage
 coverage/
+
+# Ledgerly v2
+backend/myven/
+backend/.env
+frontend/test-results/
+frontend/playwright-report/
+*.sqlite3-wal
+*.sqlite3-shm
+!.env.example

@@ -1,0 +1,37 @@
+# Full local stack with PostgreSQL and Mailpit. Works with Docker or Podman (`podman compose up`).
+# Note: Docker Desktop needs a paid licence in companies with >250 employees; Podman is free.
+# The app also runs without containers (SQLite + scripts/dev.ps1) – see docs/local-development.md.
+services:
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: ledgerly, POSTGRES_PASSWORD: ledgerly, POSTGRES_DB: ledgerly }
+    volumes: [pgdata:/var/lib/postgresql/data]
+    ports: ["5432:5432"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U ledgerly"], interval: 5s, retries: 10 }
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["8025:8025", "1025:1025"]   # web inbox on :8025
+  api:
+    build: ./backend
+    environment: &backend-env
+      DATABASE_URL: postgresql+psycopg://ledgerly:ledgerly@db:5432/ledgerly
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      APP_URL: http://localhost:5173
+    volumes: [appdata:/data]
+    ports: ["8000:8000"]
+    depends_on: { db: { condition: service_healthy } }
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.worker"]
+    environment: *backend-env
+    volumes: [appdata:/data]
+    depends_on: [api]
+  web:
+    build: ./frontend
+    environment: { VITE_API_TARGET: "http://api:8000" }
+    ports: ["5173:5173"]
+    depends_on: [api]
+volumes:
+  pgdata: {}
+  appdata: {}

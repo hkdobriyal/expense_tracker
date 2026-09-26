@@ -1,16 +1,10 @@
-# Expense Tracker — Backend
+# Ledgerly API
 
-Run locally (assuming Python 3.10+):
+FastAPI + SQLAlchemy + Alembic. See the root README and `docs/`.
 
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```powershell
+python -m venv .venv; .\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000   # API, docs at /api/docs
+.\.venv\Scripts\python -m app.worker                                 # background worker
+.\.venv\Scripts\python -m pytest -q                                   # tests
 ```
-
-The app uses a local SQLite database at `backend/expense_tracker.sqlite3`, so no database installation is required.
-
-The API stores Indian personal finance fields including INR amounts, expense/income/investment type, Indian payment methods (UPI, cards, cash, net banking), merchant, recurring status, category, date, and notes. Existing databases are migrated automatically when the API starts.
-
-CSV export is available at `GET /transactions/export.csv`.
