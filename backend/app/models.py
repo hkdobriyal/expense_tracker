@@ -22,6 +22,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     Date,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -66,6 +67,7 @@ class User(Base):
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    email_verified_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
 
     settings: Mapped["UserSettings"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
 
@@ -84,6 +86,35 @@ class UserSession(Base):
     ip_address: Mapped[str] = mapped_column(String(64), default="")
 
     user: Mapped[User] = relationship()
+
+
+class AuthToken(Base):
+    """Single-use tokens for password reset and email verification (only a hash is stored)."""
+
+    __tablename__ = "auth_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(16))  # reset|verify
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    used_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class PushSubscription(Base):
+    """A browser's Web Push endpoint (one per browser/device)."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(String(255))
+    auth: Mapped[str] = mapped_column(String(255))
+    user_agent: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
 
 
 def default_notification_matrix() -> dict[str, dict[str, bool]]:
@@ -324,6 +355,11 @@ class Transaction(Base):
     external_id: Mapped[Optional[str]] = mapped_column(String(128))
     fingerprint: Mapped[str] = mapped_column(String(64), default="")
     raw_description: Mapped[str] = mapped_column(Text, default="")
+    # Entities pulled out of the narration (mode, UPI id, reference, card, payee…).
+    extracted: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # Who chose the category: user|rule|merchant|ml|keyword|llm, and how confident (0–1) automated ones were.
+    category_source: Mapped[str] = mapped_column(String(16), default="")
+    category_confidence: Mapped[Optional[float]] = mapped_column(Float)
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
@@ -559,6 +595,8 @@ class ImportJob(Base):
     skipped_count: Mapped[int] = mapped_column(Integer, default=0)
     error_count: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[Optional[str]] = mapped_column(Text)
+    # How rows were read (csv, pdf-table, pdf-text, pdf-ocr, image-ocr, docx-table…) and parser notes.
+    parse_info: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     completed_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime)
 

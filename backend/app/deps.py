@@ -14,7 +14,7 @@ from .db import get_db, utcnow
 from .models import User, UserSession, UserSettings
 from .security import hash_token
 
-SESSION_COOKIE = "ledgerly_session"
+SESSION_COOKIE = "hisaab_session"
 CSRF_HEADER = "x-csrf-token"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 

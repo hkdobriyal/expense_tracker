@@ -9,11 +9,27 @@ from app.security import hash_password
 from .conftest import PASSWORD, Api, add_txn, make_account
 
 
-def test_first_run_registration_then_closed(anon):
-    assert anon.get("/api/auth/status") == {"has_account": False, "registration_open": True}
+def test_registration_open_by_default(anon):
+    status = anon.get("/api/auth/status")
+    assert status["has_account"] is False and status["registration_open"] is True and status["app_name"] == "Hisaab"
     anon.post("/api/auth/register", json={"email": "a@example.com", "password": PASSWORD})
-    assert anon.get("/api/auth/status")["registration_open"] is False
-    anon.post("/api/auth/register", json={"email": "b@example.com", "password": PASSWORD}, expected=403)
+    assert anon.get("/api/auth/status")["registration_open"] is True
+    anon.post("/api/auth/register", json={"email": "b@example.com", "password": PASSWORD})
+    anon.post("/api/auth/register", json={"email": "B@example.com", "password": PASSWORD}, expected=409)
+
+
+def test_registration_can_be_closed(anon, monkeypatch):
+    from app.config import get_settings
+
+    anon.post("/api/auth/register", json={"email": "a@example.com", "password": PASSWORD})
+    monkeypatch.setenv("ALLOW_REGISTRATION", "false")
+    get_settings.cache_clear()
+    try:
+        assert anon.get("/api/auth/status")["registration_open"] is False
+        anon.post("/api/auth/register", json={"email": "b@example.com", "password": PASSWORD}, expected=403)
+    finally:
+        monkeypatch.delenv("ALLOW_REGISTRATION")
+        get_settings.cache_clear()
 
 
 def test_weak_password_rejected(anon):

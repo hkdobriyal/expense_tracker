@@ -26,12 +26,13 @@ from .models import BankConnection, SystemState, User
 from .services import alerts, jobs, networth, recurring
 from .services.context import UserContext
 
-log = logging.getLogger("ledgerly.worker")
+log = logging.getLogger("hisaab.worker")
 
 LOOP_SECONDS = 15
 ALERT_EVERY = timedelta(minutes=10)
 SYNC_CHECK_EVERY = timedelta(hours=1)
 AUTO_SYNC_AFTER = timedelta(hours=6)
+ML_EVERY = timedelta(hours=1)
 
 _running = True
 
@@ -74,6 +75,20 @@ def run_periodic(db, now, last: dict) -> None:
                 jobs.enqueue(db, "bank_sync", {"connection_id": conn.id}, max_attempts=2)
         db.commit()
         last["sync"] = now
+    if now - last.get("ml", now - ML_EVERY * 2) >= ML_EVERY:
+        from .services import ml
+
+        for user in users:
+            try:
+                needed = ml.needs_retrain(db, user.id)
+                db.rollback()  # don't hold the write lock while deciding/training
+                if needed:
+                    ml.train(db, user.id, release_lock=True)
+                    db.commit()
+            except Exception:  # noqa: BLE001
+                db.rollback()
+                log.exception("ML retraining failed for user %s", user.id)
+        last["ml"] = now
     today_key = now.date().isoformat()
     if last.get("snapshot") != today_key:
         for user in users:

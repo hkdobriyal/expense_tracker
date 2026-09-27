@@ -24,7 +24,8 @@ from .categorization import get_or_create_merchant
 from .context import UserContext
 from .periods import add_months, month_bounds
 
-DEMO_EMAIL = "demo@ledgerly.local"
+DEMO_EMAIL = "demo@hisaab.local"
+LEGACY_DEMO_EMAILS = ("demo@ledgerly.local",)
 
 
 def _category(db: Session, user_id: int, name: str) -> Category | None:
@@ -32,10 +33,9 @@ def _category(db: Session, user_id: int, name: str) -> Category | None:
 
 
 def reset_demo_user(db: Session) -> User:
-    existing = db.scalar(select(User).where(User.email == DEMO_EMAIL))
-    if existing is not None:
-        db.delete(existing)
-        db.flush()
+    for old in db.scalars(select(User).where(User.email.in_((DEMO_EMAIL, *LEGACY_DEMO_EMAILS)), User.is_demo.is_(True))).all():
+        db.delete(old)
+    db.flush()
     user = User(email=DEMO_EMAIL, password_hash=hash_password(secrets.token_urlsafe(24)), display_name="Demo", is_demo=True)
     db.add(user)
     db.flush()

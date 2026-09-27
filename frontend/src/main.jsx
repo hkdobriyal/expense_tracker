@@ -3,7 +3,9 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import { registerServiceWorker } from './lib/push'
 import './styles.css'
+import './styles-extra.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -15,9 +17,8 @@ const queryClient = new QueryClient({
   },
 })
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
-}
+// Service worker: push notifications always; offline caching in production builds only.
+window.addEventListener('load', () => { registerServiceWorker() })
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

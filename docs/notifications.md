@@ -14,7 +14,7 @@ class NotificationProvider(Protocol):
 | Email | `SMTPEmailProvider` when `SMTP_HOST` is set, otherwise `ConsoleEmailProvider` | `sent` / `failed`, or `logged` (not sent) |
 | SMS | `MockSMSProvider` | `mocked` (nothing sent) |
 | WhatsApp | `MockWhatsAppProvider` | `mocked` (nothing sent) |
-| Push | not implemented | `skipped` |
+| Push | `WebPushProvider`: Web Push with self-generated VAPID keys (`pywebpush`) | `sent` / `failed`; expired browser subscriptions are removed automatically |
 
 Statuses are deliberately honest: the UI shows "logged (SMTP not set)" or "mock", never a fake "sent".
 

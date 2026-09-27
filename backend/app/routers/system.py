@@ -53,7 +53,7 @@ def export_backup(request: Request, current: CurrentUser = Depends(get_current_u
     data = backup.export(db, ctx_of(current))
     audit.record(db, current.id, "data.exported", "backup", None, {"transactions": len(data["transactions"])}, client_ip(request))
     db.commit()
-    filename = f"ledgerly-backup-{utcnow():%Y%m%d-%H%M}.json"
+    filename = f"hisaab-backup-{utcnow():%Y%m%d-%H%M}.json"
     return Response(json.dumps(data, indent=2, ensure_ascii=False), media_type="application/json", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 

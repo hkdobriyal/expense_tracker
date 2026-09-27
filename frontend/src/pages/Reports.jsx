@@ -37,7 +37,7 @@ export default function Reports() {
   const [period, setPeriod] = usePeriod('this_month')
   const params = periodParams(period)
   const q = useQuery({ queryKey: ['report', report, period], queryFn: () => api.get(`/reports/${report}`, params), enabled: !!periodReady(period) })
-  const download = (format) => api.download(`/reports/${report}`, { ...params, format }, `ledgerly-${report}.${format}`).catch((e) => toast.error(e.message))
+  const download = (format) => api.download(`/reports/${report}`, { ...params, format }, `hisaab-${report}.${format}`).catch((e) => toast.error(e.message))
   const d = q.data
   return (
     <>

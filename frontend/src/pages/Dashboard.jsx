@@ -36,7 +36,7 @@ export default function Dashboard() {
         <>
           {!d.onboarding.dismissed && !d.onboarding.complete && <Onboarding steps={d.onboarding.steps} />}
           <div className="grid grid-4">
-            <Card className="hero span-2 stat">
+            <Card className="hero span-2 stat shine-card" tilt>
               <Suspense fallback={null}><Hero3D positive={d.totals.net_cash_flow >= 0} /></Suspense>
               <div style={{ position: 'relative' }}>
                 <div className="label"><span className="stat-icon"><Wallet size={16} /></span>Total balance</div>

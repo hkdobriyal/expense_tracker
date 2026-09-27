@@ -1,4 +1,5 @@
-"""Statement file parsers: CSV, XLSX, OFX/QFX and (text-based) PDF.
+"""Statement file parsers: CSV/TSV/TXT, XLS/XLSX (and HTML-as-XLS), OFX/QFX, JSON, DOCX,
+PDF (tables, text or scanned via OCR) and images (OCR).
 
 Every parser produces the same shape – ``headers`` + ``rows`` of strings – so
 one column-mapping step handles all formats. Mapping turns rows into
@@ -42,20 +43,57 @@ class ParsedFile:
     rows: list[list[str]]
     bank_detected: str = ""
     preset_mapping: dict | None = None  # formats with a fixed layout (OFX/PDF) need no user mapping
+    method: str = ""  # how rows were obtained: csv, pdf-table, pdf-text, pdf-ocr, image-ocr, docx-table…
+    notes: list | None = None
+
+
+SUPPORTED_EXTENSIONS = (".csv", ".tsv", ".txt", ".xls", ".xlsx", ".xlsm", ".ofx", ".qfx", ".pdf", ".docx", ".json", ".html", ".htm", ".png", ".jpg", ".jpeg", ".webp")
 
 
 def detect_format(filename: str, content: bytes) -> str:
+    """Decide by content first (magic bytes), then by extension."""
+    import zipfile
+
     name = filename.lower()
-    head = content[:512].lstrip()
+    head = content[:1024].lstrip()
+    if head.startswith(b"%PDF"):
+        return "pdf"
+    if head.startswith(b"\x89PNG"):
+        return "png"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if head[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return "webp"
     if name.endswith((".ofx", ".qfx")) or b"<OFX>" in content[:4096].upper() or head.startswith(b"OFXHEADER"):
         return "qfx" if name.endswith(".qfx") else "ofx"
-    if name.endswith(".pdf") or head.startswith(b"%PDF"):
-        return "pdf"
-    if name.endswith((".xlsx", ".xlsm")) or head.startswith(b"PK\x03\x04"):
-        return "xlsx"
-    if name.endswith((".csv", ".txt", ".tsv")):
+    if head.startswith(b"PK\x03\x04"):
+        try:
+            names = zipfile.ZipFile(io.BytesIO(content)).namelist()
+        except zipfile.BadZipFile as exc:
+            raise ImportParseError("The file looks like a damaged Office document.") from exc
+        if any(n.startswith("word/") for n in names):
+            return "docx"
+        if any(n.startswith("xl/") for n in names):
+            return "xlsx"
+        raise ImportParseError("Unsupported Office/zip file. Upload XLSX, DOCX, CSV, PDF or OFX.")
+    if content[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" or name.endswith(".xls"):
+        return "xls"
+    if name.endswith(".doc"):
+        raise ImportParseError("Old .doc files aren't supported - save it as .docx or PDF first.")
+    if name.endswith(".json") or head[:1] in (b"[", b"{"):
+        return "json"
+    if name.endswith((".html", ".htm")) or head.lower().startswith((b"<html", b"<!doctype html", b"<table")):
+        return "html"
+    if name.endswith((".csv", ".tsv")):
         return "csv"
-    raise ImportParseError("Unsupported file type. Upload a CSV, XLSX, OFX/QFX or PDF statement.")
+    if name.endswith(".txt") or "." not in name or _looks_like_text(content):
+        return "txt"
+    raise ImportParseError("Unsupported file type. Supported: CSV, TSV, TXT, XLS, XLSX, OFX/QFX, PDF, DOCX, JSON, HTML, PNG/JPG.")
+
+
+def _looks_like_text(content: bytes) -> bool:
+    sample = content[:2000]
+    return bool(sample) and all(b >= 32 or b in (9, 10, 13) for b in sample)
 
 
 def detect_bank(text: str) -> str:
@@ -161,49 +199,236 @@ def parse_ofx(content: bytes, file_format: str = "ofx") -> ParsedFile:
     return ParsedFile(file_format, headers, rows[:MAX_ROWS], org or detect_bank(text[:3000]), mapping)
 
 
-_PDF_LINE = re.compile(
-    r"^(\d{1,2}[/\-.](?:\d{1,2}|[A-Za-z]{3})[/\-.]\d{2,4})\s+(.+?)\s+(-?[\d,]+\.\d{2})\s*(CR|DR|Cr|Dr)?(?:\s+(-?[\d,]+\.\d{2})\s*(?:CR|DR|Cr|Dr)?)?\s*$"
-)
+TEXT_HEADERS = ["Date", "Narration", "Amount", "Dr/Cr", "Balance"]
+TEXT_MAPPING = {"date": 0, "description": 1, "amount": 2, "direction": 3, "balance": 4, "sign": "direction_column"}
 
 
-def parse_pdf(content: bytes, password: str | None = None) -> ParsedFile:
-    from pypdf import PdfReader
-    from pypdf.errors import PdfReadError
+def _from_text_lines(lines: list[str], file_format: str, bank_text: str, method: str) -> ParsedFile:
+    from .statement_text import parse_lines
+
+    rows, notes = parse_lines(lines)
+    if not rows:
+        raise ImportParseError(
+            "No transaction lines were recognised. Each transaction should start with a date and include an amount. "
+            "If your bank offers a CSV/Excel download, that imports most reliably."
+        )
+    parsed = ParsedFile(file_format, TEXT_HEADERS, rows[:MAX_ROWS], detect_bank(bank_text), dict(TEXT_MAPPING))
+    parsed.method = method
+    parsed.notes = notes
+    return parsed
+
+
+def _tables_to_parsed(tables: list[list[list[str]]], file_format: str, bank_text: str, method: str) -> ParsedFile | None:
+    """Stitch tables (possibly split across pages) under the first header row found."""
+    header_row: list[str] | None = None
+    body: list[list[str]] = []
+    for table in tables:
+        cleaned = [[re.sub(r"\s+", " ", c or "").strip() for c in row] for row in table if row and any(c for c in row)]
+        for row in cleaned:
+            if header_row is None:
+                if _is_header_row(row):
+                    header_row = row
+                continue
+            if row == header_row or _is_header_row(row):
+                continue  # header repeated on later pages
+            body.append(row)
+    if header_row is None or not body:
+        return None
+    parsed = _tabulate([header_row] + body, file_format, detect_bank(bank_text))
+    parsed.method = method
+    return parsed
+
+
+def parse_pdf_any(content: bytes, password: str | None = None) -> ParsedFile:
+    """PDF: tables → text lines → OCR, in that order."""
+    import pdfplumber
+    from pdfminer.pdfdocument import PDFPasswordIncorrect
 
     try:
-        reader = PdfReader(io.BytesIO(content))
-    except PdfReadError as exc:
+        pdf = pdfplumber.open(io.BytesIO(content), password=password or "")
+    except PDFPasswordIncorrect as exc:
+        raise ImportParseError("This PDF is password protected. Enter the statement password (often your PAN in capitals, or name + date of birth)."
+                               if not password else "Incorrect statement password.") from exc
+    except Exception as exc:  # noqa: BLE001 - malformed PDF
         raise ImportParseError(f"Could not read the PDF: {exc}") from exc
-    if reader.is_encrypted:
-        if not password:
-            raise ImportParseError("This PDF is password protected. Enter the statement password (often PAN in capitals + date of birth).")
-        if not reader.decrypt(password):
-            raise ImportParseError("Incorrect statement password.")
-    text = "\n".join((page.extract_text() or "") for page in reader.pages)
-    if not text.strip():
-        raise ImportParseError("No text found in this PDF (it may be a scanned image). Download a CSV/XLSX statement instead.")
+    with pdf:
+        pages = pdf.pages[:60]
+        text = "\n".join((p.extract_text() or "") for p in pages)
+        tables = [t for p in pages for t in (p.extract_tables() or [])]
+        parsed = _tables_to_parsed(tables, "pdf", text[:4000], "pdf-table") if tables else None
+        if parsed is not None and len(parsed.rows) >= 1:
+            return parsed
+        if text.strip():
+            try:
+                return _from_text_lines(text.splitlines(), "pdf", text[:4000], "pdf-text")
+            except ImportParseError:
+                pass
+        from ..config import get_settings
+
+        if not get_settings().ocr_enabled:
+            raise ImportParseError("This PDF has no readable text (scanned image) and OCR is disabled (OCR_ENABLED=false).")
+        lines: list[str] = []
+        from .statement_text import ocr_image_lines
+
+        for page in pages[:15]:
+            lines += ocr_image_lines(page.to_image(resolution=200).original)
+        return _from_text_lines(lines, "pdf", "\n".join(lines[:60]), "pdf-ocr")
+
+
+def parse_image(content: bytes, file_format: str) -> ParsedFile:
+    from PIL import Image, ImageOps
+
+    from ..config import get_settings
+    from .statement_text import ocr_image_lines
+
+    if not get_settings().ocr_enabled:
+        raise ImportParseError("Images need OCR, which is disabled (OCR_ENABLED=false).")
+    try:
+        image = ImageOps.exif_transpose(Image.open(io.BytesIO(content)))
+    except Exception as exc:  # noqa: BLE001
+        raise ImportParseError(f"Could not open the image: {exc}") from exc
+    lines = ocr_image_lines(image)
+    return _from_text_lines(lines, file_format, "\n".join(lines[:60]), "image-ocr")
+
+
+def parse_docx(content: bytes) -> ParsedFile:
+    import docx
+
+    try:
+        document = docx.Document(io.BytesIO(content))
+    except Exception as exc:  # noqa: BLE001
+        raise ImportParseError(f"Could not open the Word document: {exc}") from exc
+    paragraphs = [p.text for p in document.paragraphs]
+    tables = [[[cell.text for cell in row.cells] for row in table.rows] for table in document.tables]
+    bank_text = "\n".join(paragraphs[:40])
+    parsed = _tables_to_parsed(tables, "docx", bank_text, "docx-table") if tables else None
+    if parsed is not None:
+        return parsed
+    lines = paragraphs + [" ".join(row) for t in tables for row in t]
+    return _from_text_lines(lines, "docx", bank_text, "docx-text")
+
+
+class _HTMLTables:
+    """Tiny HTML table reader (bank 'xls' downloads are often HTML)."""
+
+    def __init__(self, text: str):
+        from html.parser import HTMLParser
+
+        self.tables: list[list[list[str]]] = []
+        outer = self
+
+        class P(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.row: list[str] | None = None
+                self.cell: list[str] | None = None
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "table":
+                    outer.tables.append([])
+                elif tag == "tr" and outer.tables:
+                    self.row = []
+                elif tag in ("td", "th") and self.row is not None:
+                    self.cell = []
+
+            def handle_endtag(self, tag):
+                if tag in ("td", "th") and self.cell is not None and self.row is not None:
+                    self.row.append(" ".join("".join(self.cell).split()))
+                    self.cell = None
+                elif tag == "tr" and self.row is not None and outer.tables:
+                    outer.tables[-1].append(self.row)
+                    self.row = None
+
+            def handle_data(self, data):
+                if self.cell is not None:
+                    self.cell.append(data)
+
+        P().feed(text)
+
+
+def parse_html(content: bytes, file_format: str = "html") -> ParsedFile:
+    text = content.decode("utf-8", errors="replace")
+    tables = _HTMLTables(text).tables
+    parsed = _tables_to_parsed(tables, file_format, re.sub(r"<[^>]+>", " ", text[:6000]), "html-table")
+    if parsed is None:
+        raise ImportParseError("No transaction table with a Date column was found in this file.")
+    return parsed
+
+
+def parse_xls(content: bytes) -> ParsedFile:
+    if content[:8] != b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+        # Many banks' ".xls" downloads are really HTML or tab-separated text.
+        head = content[:2000].lower()
+        if b"<table" in head or b"<html" in head or b"<?xml" in head:
+            return parse_html(content, "xls")
+        return parse_csv(content)
+    import xlrd
+
+    try:
+        book = xlrd.open_workbook(file_contents=content)
+    except Exception as exc:  # noqa: BLE001
+        raise ImportParseError(f"Could not open the .xls file: {exc}") from exc
+    sheet = book.sheet_by_index(0)
     rows = []
-    for line in (l.strip() for l in text.splitlines()):
-        m = _PDF_LINE.match(line)
-        if not m:
-            continue
-        rows.append([m.group(1), m.group(2), m.group(3), (m.group(4) or "").upper(), m.group(5) or ""])
-    if not rows:
-        raise ImportParseError("No transaction lines recognised in this PDF. Bank PDF layouts vary – a CSV/XLSX export imports more reliably.")
-    headers = ["Date", "Narration", "Amount", "Dr/Cr", "Balance"]
-    mapping = {"date": 0, "description": 1, "amount": 2, "direction": 3, "balance": 4, "sign": "direction_column"}
-    return ParsedFile("pdf", headers, rows[:MAX_ROWS], detect_bank(text[:3000]), mapping)
+    for r in range(min(sheet.nrows, MAX_ROWS + 60)):
+        cells = []
+        for c in range(sheet.ncols):
+            cell = sheet.cell(r, c)
+            if cell.ctype == xlrd.XL_CELL_DATE:
+                cells.append(xlrd.xldate.xldate_as_datetime(cell.value, book.datemode).date().isoformat())
+            elif cell.ctype == xlrd.XL_CELL_NUMBER:
+                cells.append(format(Decimal(repr(cell.value)), "f"))
+            else:
+                cells.append(str(cell.value))
+        rows.append(cells)
+    return _tabulate(rows, "xls", detect_bank(" ".join(" ".join(r) for r in rows[:15])))
+
+
+def parse_json(content: bytes) -> ParsedFile:
+    import json
+
+    try:
+        data = json.loads(content.decode("utf-8-sig"))
+    except ValueError as exc:
+        raise ImportParseError(f"Invalid JSON: {exc}") from exc
+    if isinstance(data, dict):
+        data = next((v for v in data.values() if isinstance(v, list)), [])
+    records = [r for r in data if isinstance(r, dict)] if isinstance(data, list) else []
+    if not records:
+        raise ImportParseError("The JSON file should contain a list of transaction objects.")
+    headers: list[str] = []
+    for r in records[:200]:
+        headers += [k for k in r if k not in headers]
+    rows = [["" if r.get(h) is None else str(r.get(h)) for h in headers] for r in records[:MAX_ROWS]]
+    return _tabulate([headers] + rows, "json", "")
+
+
+def parse_text_file(content: bytes) -> ParsedFile:
+    """TXT: delimited table if it looks like one, otherwise free-text statement lines."""
+    try:
+        parsed = parse_csv(content)
+        if len(parsed.headers) >= 3:  # a real delimited table
+            parsed.file_format, parsed.method = "txt", "txt-table"
+            return parsed
+    except ImportParseError:
+        pass
+    text = content.decode("utf-8", errors="replace")
+    return _from_text_lines(text.splitlines(), "txt", text[:3000], "text")
 
 
 def parse_file(filename: str, content: bytes, password: str | None = None) -> ParsedFile:
     fmt = detect_format(filename, content)
-    if fmt == "csv":
-        return parse_csv(content)
-    if fmt == "xlsx":
-        return parse_xlsx(content)
-    if fmt in ("ofx", "qfx"):
-        return parse_ofx(content, fmt)
-    return parse_pdf(content, password)
+    parsers = {
+        "csv": lambda: parse_csv(content), "txt": lambda: parse_text_file(content), "xlsx": lambda: parse_xlsx(content),
+        "xls": lambda: parse_xls(content), "ofx": lambda: parse_ofx(content, "ofx"), "qfx": lambda: parse_ofx(content, "qfx"),
+        "pdf": lambda: parse_pdf_any(content, password), "docx": lambda: parse_docx(content), "html": lambda: parse_html(content),
+        "json": lambda: parse_json(content), "png": lambda: parse_image(content, "png"), "jpg": lambda: parse_image(content, "jpg"),
+        "webp": lambda: parse_image(content, "webp"),
+    }
+    parsed = parsers[fmt]()
+    if not getattr(parsed, "method", None):
+        parsed.method = fmt
+    return parsed
 
 
 # ---------------------------------------------------------------------------
@@ -289,34 +514,16 @@ def parse_amount(value: str) -> Decimal | None:
     return -amount if negative else amount
 
 
-_UPI = re.compile(r"UPI[/-](?:(?:CR|DR|P2A|P2M)[/-])?(?:\d{6,}[/-])?([^/@-][^/@]*?)(?:[/@]|$)", re.I)
-_POS = re.compile(r"(?:POS|ECOM|PCD)\s*(?:\d{4,}\s*)?([A-Za-z][A-Za-z0-9 &.'-]{2,40})", re.I)
-_NEFT = re.compile(r"(?:NEFT|IMPS|RTGS)[/-](?:(?:CR|DR)[/-])?[A-Z0-9]*[/-]([^/]+)", re.I)
-
-
 def guess_merchant(narration: str) -> str | None:
-    for pattern in (_UPI, _POS, _NEFT):
-        m = pattern.search(narration)
-        if m:
-            name = re.sub(r"\s+", " ", m.group(1)).strip(" .-")
-            if len(name) >= 2 and not name.isdigit():
-                return name.title()[:80]
-    return None
+    from .extraction import extract
+
+    return extract(narration).get("merchant")
 
 
 def guess_payment_method(narration: str) -> str:
-    upper = narration.upper()
-    if "UPI" in upper:
-        return "UPI"
-    if any(k in upper for k in ("POS", "ECOM", "PCD", "CARD")):
-        return "Card"
-    if any(k in upper for k in ("NEFT", "IMPS", "RTGS")):
-        return "Net banking"
-    if any(k in upper for k in ("ACH", "NACH", "ECS", "SI-", "MANDATE")):
-        return "Auto-debit"
-    if "ATM" in upper or "CASH WDL" in upper:
-        return "Cash"
-    return ""
+    from .extraction import extract, payment_method
+
+    return payment_method(extract(narration))
 
 
 def guess_type(narration: str, direction: str) -> str:
@@ -339,6 +546,8 @@ def normalize_rows(headers: list[str], rows: list[list[str]], mapping: dict) -> 
             return ""
         return row[int(idx)]
 
+    from .extraction import extract, payment_method
+
     date_fmt = mapping.get("date_format") or detect_date_format([col(r, "date") for r in rows])
     sign_mode = mapping.get("sign", "signed")
     invert = bool(mapping.get("invert"))
@@ -348,7 +557,12 @@ def normalize_rows(headers: list[str], rows: list[list[str]], mapping: dict) -> 
         try:
             if mapping.get("date") is None:
                 raise ValueError("Map the date column")
-            day = parse_date(col(row, "date"), date_fmt)
+            try:
+                day = parse_date(col(row, "date"), date_fmt)
+            except ValueError:
+                if mapping.get("date_format"):
+                    raise  # the user chose a format explicitly
+                day = parse_date(col(row, "date"), None)  # statements printed as text often mix date styles
             description = re.sub(r"\s+", " ", col(row, "description")).strip()
             if not description:
                 raise ValueError("Empty description")
@@ -373,14 +587,16 @@ def normalize_rows(headers: list[str], rows: list[list[str]], mapping: dict) -> 
             if invert:
                 signed = -signed
             direction = "in" if signed > 0 else "out"
+            entities = extract(description)
             item.update({
                 "date": day.isoformat(),
                 "description": description[:255],
                 "amount": format(abs(signed), "f"),
                 "direction": direction,
                 "type": guess_type(description, direction),
-                "merchant": guess_merchant(description),
-                "payment_method": guess_payment_method(description),
+                "merchant": entities.get("merchant"),
+                "payment_method": payment_method(entities),
+                "entities": entities,
                 "external_id": col(row, "external_id").strip() or None,
                 "notes": col(row, "notes").strip(),
                 "balance": col(row, "balance").strip(),

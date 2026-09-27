@@ -1,11 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hisaab">
   <defs>
-    <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#78d4c4"/>
-      <stop offset="100%" stop-color="#1f8f8a"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8ae6ff"/>
+      <stop offset="0.55" stop-color="#8d7bff"/>
+      <stop offset="1" stop-color="#b29bff"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="120" fill="#111313"/>
-  <rect x="70" y="72" width="372" height="368" rx="100" fill="url(#g1)"/>
-  <path d="M176 340c-20-33-32-69-32-108 0-84 58-150 136-150 44 0 86 18 116 51l-67 50c-16-17-36-27-58-27-42 0-76 35-76 79 0 29 14 55 36 72l-55 33zm80-119h112v54H256v-54zm-18 95h130v54H238v-54zm90-198h112v54H328V118z" fill="#f5f7f6" opacity="0.96"/>
+  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
+  <rect width="512" height="256" rx="120" fill="url(#shine)"/>
+  <!-- rupee mark built from strokes so it renders the same everywhere -->
+  <g fill="none" stroke="#06202f" stroke-width="40" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 150 H362"/>
+    <path d="M150 228 H362"/>
+    <path d="M190 150 C300 150 322 188 322 214 C322 262 276 290 206 290 H176 L332 392"/>
+  </g>
+  <circle cx="392" cy="120" r="26" fill="#7ef0c2"/>
 </svg>

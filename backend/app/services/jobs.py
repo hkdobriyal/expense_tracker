@@ -19,7 +19,7 @@ from ..config import get_settings
 from ..db import utcnow
 from ..models import Job
 
-log = logging.getLogger("ledgerly.jobs")
+log = logging.getLogger("hisaab.jobs")
 
 HANDLERS: dict[str, Callable[[Session, dict], None]] = {}
 

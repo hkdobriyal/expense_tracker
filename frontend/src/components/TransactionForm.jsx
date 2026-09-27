@@ -63,6 +63,21 @@ export default function TransactionForm({ open, onClose, transaction, initialTyp
   const catOptions = useMemo(() => categoryOptions(categories, kind), [categories, kind])
   const splitTotal = (form.splits || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
 
+  // Live AI suggestion (on-device ML + entity extraction) while typing.
+  const [ai, setAi] = useState(null)
+  useEffect(() => {
+    if (!open || !['expense', 'income', 'refund'].includes(form.type) || form.description.trim().length < 3) { setAi(null); return undefined }
+    const timer = setTimeout(() => {
+      api.post('/ai/suggest', { description: form.description, merchant: form.merchant || null, amount: form.amount || null, type: form.type === 'income' ? 'income' : 'expense' })
+        .then((r) => {
+          setAi(r)
+          setForm((f) => ({ ...f, payment_method: f.payment_method || r.payment_method || '' }))
+        })
+        .catch(() => setAi(null))
+    }, 450)
+    return () => clearTimeout(timer)
+  }, [open, form.description, form.merchant, form.type]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const save = useLedgerMutation((payload) => (transaction ? api.put(`/transactions/${transaction.id}`, payload) : api.post('/transactions', payload)), {
     onSuccess: (data) => {
       toast.success(transaction ? 'Transaction updated' : 'Transaction added')
@@ -110,8 +125,23 @@ export default function TransactionForm({ open, onClose, transaction, initialTyp
             <>
               <Field label="Merchant"><input className="input" value={form.merchant} placeholder="e.g. Swiggy" onChange={(e) => set({ merchant: e.target.value })} /></Field>
               <Field label="Category" hint={form.splits ? 'Using splits below' : 'Leave empty to auto-categorise'}>
-                <Select value={form.category_id} disabled={!!form.splits} onChange={(e) => set({ category_id: e.target.value })} placeholder="Auto" options={catOptions} />
+                <Select value={form.category_id} disabled={!!form.splits} onChange={(e) => set({ category_id: e.target.value })} placeholder="Auto (AI)" options={catOptions} />
               </Field>
+              {ai && (ai.suggestions.length > 0 || ai.summary) && !form.splits && (
+                <div className="full">
+                  {ai.summary && <div className="entity-chips">{ai.summary.split(' · ').map((part) => <span key={part}>{part}</span>)}</div>}
+                  {ai.suggestions.length > 0 && !form.category_id && (
+                    <div className="suggest-chips" aria-label="Suggested categories">
+                      <span className="ai-badge">✦ AI suggests</span>
+                      {ai.suggestions.map((sug) => (
+                        <button key={sug.category_id} type="button" onClick={() => set({ category_id: String(sug.category_id), merchant: form.merchant || ai.merchant || '' })}>
+                          {sug.category.split('/').pop()} · {Math.round(sug.confidence * 100)}%
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
           <Field label={form.type === 'transfer' ? 'From account' : 'Account'} required>

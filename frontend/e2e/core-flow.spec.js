@@ -25,10 +25,14 @@ async function addTransaction(page, { type, amount, description, category }) {
 test('sign up → account → income & expense → dashboard → budget alert → notification', async ({ page }) => {
   const errors = trackErrors(page)
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Create your workspace' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Every rupee/ })).toBeVisible()  // public landing page
+  await page.getByRole('link', { name: 'Get started' }).click()
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible()
   await page.getByLabel('Your name').fill('Owner')
-  await page.getByLabel(/Email/).fill(EMAIL)
-  await page.getByLabel(/Password/).fill(PASSWORD)
+  await page.getByLabel(/^Email/).fill(EMAIL)
+  await page.getByLabel(/^Password/).fill(PASSWORD)
+  await page.getByLabel(/^Confirm password/).fill(PASSWORD)
+  await expect(page.getByText('Strong').or(page.getByText('Excellent'))).toBeVisible()
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page.getByRole('heading', { name: /Hello, Owner/ })).toBeVisible()
   await expect(page.getByText('Get set up')).toBeVisible()
@@ -88,8 +92,12 @@ test('sign up → account → income & expense → dashboard → budget alert �
 
   // Sign out and back in: data persists
   await page.getByRole('button', { name: 'Sign out' }).click()
-  await page.getByLabel(/Email/).fill(EMAIL)
-  await page.getByLabel(/Password/).fill(PASSWORD)
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+  await page.getByLabel(/^Email/).fill(EMAIL)
+  const pw = page.getByLabel(/^Password/)
+  await pw.fill(PASSWORD)
+  await page.getByRole('button', { name: 'Show password' }).click()
+  await expect(pw).toHaveAttribute('type', 'text')  // eye toggle reveals the password
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByText('₹59,590').first()).toBeVisible()
 
@@ -99,10 +107,10 @@ test('sign up → account → income & expense → dashboard → budget alert �
 test('demo workspace: every page renders without errors', async ({ page }) => {
   const errors = trackErrors(page)
   await page.context().clearCookies()
-  await page.goto('/')
+  await page.goto('/login')
   await page.getByRole('button', { name: 'Try the demo workspace' }).click()
-  await expect(page.getByText(/DEMO WORKSPACE/)).toBeVisible()
-  const pages = ['/', '/transactions', '/accounts', '/categories', '/budgets', '/goals', '/bills', '/subscriptions', '/recurring', '/analytics', '/cash-flow', '/net-worth', '/reports', '/banks', '/import', '/alerts', '/alerts?tab=history', '/settings']
+  await expect(page.getByText(/DEMO WORKSPACE/)).toBeVisible({ timeout: 30_000 })  // builds ~150 sample transactions
+  const pages = ['/', '/assistant', '/transactions', '/accounts', '/categories', '/budgets', '/goals', '/bills', '/subscriptions', '/recurring', '/analytics', '/cash-flow', '/net-worth', '/reports', '/banks', '/import', '/alerts', '/alerts?tab=history', '/settings']
   for (const path of pages) {
     await page.goto(path)
     await expect(page.locator('main')).toBeVisible()

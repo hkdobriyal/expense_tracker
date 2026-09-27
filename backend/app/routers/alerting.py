@@ -109,7 +109,7 @@ def test_notification(current: CurrentUser = Depends(get_current_user), db: Sess
     """Send a real test message through every enabled channel to verify configuration."""
     ctx = ctx_of(current)
     obs = alerts.Observation(entity=f"test:{utcnow().isoformat()}", value=Decimal(0), period_key="-", title="Test notification",
-                             message="This is a test from Ledgerly. If you can read this, the channel works.", severity="info", link="/settings")
+                             message="This is a test notification. If you can read this, the channel works.", severity="info", link="/settings")
     event = AlertEvent(user_id=current.id, rule_id=None, metric="test", category="system", dedupe_key=f"test:{utcnow().isoformat()}",
                        title=obs.title, message=obs.message, severity="info", context={"link": obs.link})
     db.add(event)

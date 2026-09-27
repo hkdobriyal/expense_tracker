@@ -52,10 +52,10 @@ def test_budget_alert_scenario_from_brief(api, db):
 def test_budget_alert_fires_again_next_period(api, db):
     bank, groceries, budget, rule = _food_budget_with_alert(api, "450")
     assert len(rule["fired_now"]) == 1
-    user = db.query(User).filter_by(email="me@example.com").one()
     next_month = date(2030, 1, 15)
-    ctx = UserContext.for_user(db, user, today=next_month)
     add_txn(api, bank["id"], "450", "expense", "Next month", category_id=groceries, day=next_month)
+    user = db.query(User).filter_by(email="me@example.com").one()
+    ctx = UserContext.for_user(db, user, today=next_month)
     fired = alerts.evaluate_state_rules(db, ctx)
     db.commit()
     assert [e.title for e in fired] == ["Budget warning: Food"]
@@ -108,7 +108,7 @@ def test_failed_email_is_retried_then_marked_failed(api, db, monkeypatch):
         def send(self, destination, message):
             return notifications.DeliveryResult("failed", "smtp", "Connection refused")
 
-    monkeypatch.setattr(notifications, "provider_for", lambda channel: Broken())
+    monkeypatch.setattr(notifications, "provider_for", lambda channel, db=None: Broken())
     bank, groceries, budget, rule = _food_budget_with_alert(api, "")
     add_txn(api, bank["id"], "450", "expense", "Big shop", category_id=groceries)
     delivery = db.query(NotificationDelivery).filter_by(channel="email").one()

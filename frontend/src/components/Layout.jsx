@@ -1,13 +1,16 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeftRight, BarChart3, Bell, CalendarClock, CheckCheck, CreditCard, FileSpreadsheet, FlaskConical, Gauge, Goal, Landmark, LayoutDashboard,
-  LogOut, Menu, PiggyBank, Plus, Repeat, Search, Settings, Shapes, Sparkles, TrendingUp, Upload, Wallet, Waves,
+  Bot, LogOut, MailWarning, Menu, Plus, Repeat, Search, Settings, Shapes, Sparkles, TrendingUp, Upload, Wallet, Waves,
 } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { money, relativeTime } from '../lib/format'
-import { useSession } from '../lib/hooks'
+import { BRAND } from '../lib/brand'
+import { useSession, useToast } from '../lib/hooks'
+import Logo from './Logo'
+import { ScrollProgress } from './motion'
 import TransactionForm from './TransactionForm'
 import { Badge, Button, Drawer, Empty } from './ui'
 
@@ -26,6 +29,7 @@ export const NAV = [
     { to: '/recurring', label: 'Recurring', icon: Repeat },
   ] },
   { section: 'Insights', items: [
+    { to: '/assistant', label: 'Ask your money', icon: Bot },
     { to: '/analytics', label: 'Analytics', icon: BarChart3 },
     { to: '/cash-flow', label: 'Cash flow', icon: Waves },
     { to: '/net-worth', label: 'Net worth', icon: TrendingUp },
@@ -53,7 +57,8 @@ export default function Layout() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [inboxOpen, setInboxOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const unread = useQuery({ queryKey: ['unread'], queryFn: () => api.get('/notifications/unread-count'), refetchInterval: 60_000 })
+  const unread = useQuery({ queryKey: ['unread'], queryFn: () => api.get('/notifications/unread-count'), refetchInterval: 120_000 })
+  useLiveEvents()
 
   const actions = useMemo(() => ({
     addTransaction: (type = 'expense') => setTxnModal({ open: true, transaction: null, type }),
@@ -77,6 +82,7 @@ export default function Layout() {
   return (
     <ActionsContext.Provider value={actions}>
       <div className={session.settings.reduce_motion ? 'reduce-motion' : ''}>
+        {!session.user.email_verified && <VerifyBanner />}
         {session.user.is_demo && (
           <div className="demo-banner" role="status">
             <FlaskConical size={16} /> DEMO WORKSPACE – sample data from a sandbox bank, not your real accounts.
@@ -85,7 +91,7 @@ export default function Layout() {
         )}
         <div className="shell">
           <aside className="sidebar" aria-label="Main navigation">
-            <div className="brand"><span className="brand-mark"><PiggyBank size={18} /></span>ledgerly</div>
+            <div className="brand"><Logo size={32} />{BRAND.name}</div>
             <SidebarNav unread={unread.data?.unread} />
             <div style={{ marginTop: 'auto', paddingTop: 16 }}>
               <button type="button" className="nav-link" style={{ width: '100%', border: 0, background: 'none', cursor: 'pointer' }} onClick={() => setPaletteOpen(true)}>
@@ -101,13 +107,14 @@ export default function Layout() {
           <div className="main">
             <header className="topbar">
               <Button variant="ghost" icon={Menu} className="show-mobile" aria-label="Menu" onClick={() => setMenuOpen(true)} />
-              <h1 className="grow truncate">{current?.label || 'Ledgerly'}</h1>
+              <h1 className="grow truncate">{current?.label || BRAND.name}</h1>
               <Button variant="ghost" icon={Search} aria-label="Search (Ctrl K)" onClick={() => setPaletteOpen(true)} />
               <Button variant="ghost" icon={Bell} aria-label={`Notifications${unread.data?.unread ? `, ${unread.data.unread} unread` : ''}`} onClick={() => setInboxOpen(true)} style={{ position: 'relative' }}>
                 {unread.data?.unread ? <span className="chip-count" style={{ position: 'absolute', top: 2, right: 0 }}>{unread.data.unread > 9 ? '9+' : unread.data.unread}</span> : null}
               </Button>
               <Button variant="primary" icon={Plus} onClick={() => actions.addTransaction()} className="hide-mobile">Add <span className="kbd" style={{ color: 'inherit', borderColor: 'currentColor', opacity: 0.6 }}>N</span></Button>
             </header>
+            <ScrollProgress />
             <main className="content" id="main"><Outlet /></main>
           </div>
         </div>
@@ -124,6 +131,45 @@ export default function Layout() {
         <Inbox open={inboxOpen} onClose={() => setInboxOpen(false)} />
       </div>
     </ActionsContext.Provider>
+  )
+}
+
+// Server-Sent Events: new alerts appear instantly (toast + badge) without polling.
+function useLiveEvents() {
+  const qc = useQueryClient()
+  const toast = useToast()
+  useEffect(() => {
+    if (!('EventSource' in window)) return undefined
+    const source = new EventSource('/api/events/stream')
+    source.addEventListener('unread', (e) => {
+      try { qc.setQueryData(['unread'], JSON.parse(e.data)) } catch { /* ignore malformed event */ }
+    })
+    source.addEventListener('notification', (e) => {
+      try {
+        const n = JSON.parse(e.data)
+        toast.show(`🔔 ${n.title}`)
+        qc.invalidateQueries({ queryKey: ['notifications'] })
+      } catch { /* ignore malformed event */ }
+    })
+    return () => source.close()
+  }, [qc, toast])
+}
+
+function VerifyBanner() {
+  const toast = useToast()
+  const [sent, setSent] = useState(false)
+  const resend = async () => {
+    try {
+      const r = await api.post('/auth/resend-verification')
+      setSent(true)
+      toast.success(r.email_configured === false ? 'Email isn’t configured on the server – the link was written to the API console.' : 'Confirmation email sent')
+    } catch (e) { toast.error(e.message) }
+  }
+  return (
+    <div className="verify-banner" role="status">
+      <MailWarning size={16} /> Confirm your email address to receive alerts and password resets.
+      <Button size="sm" disabled={sent} onClick={resend}>{sent ? 'Sent' : 'Resend link'}</Button>
+    </div>
   )
 }
 

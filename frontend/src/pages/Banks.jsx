@@ -123,7 +123,7 @@ export default function Banks() {
         ) : <div className="form-error">{result.message}</div>)}
         {result && <p className="faint" style={{ marginBottom: 0 }}>Fetched {result.fetched} · finished {relativeTime(result.finished_at)}</p>}
       </Modal>
-      <Confirm open={!!disconnecting} onClose={() => setDisconnecting(null)} title={`Disconnect ${disconnecting?.institution_name}?`} message="Stored access is deleted. Linked accounts and their transactions stay in Ledgerly." confirmLabel="Disconnect" loading={disconnect.isPending} onConfirm={() => disconnect.mutate(disconnecting.id)} />
+      <Confirm open={!!disconnecting} onClose={() => setDisconnecting(null)} title={`Disconnect ${disconnecting?.institution_name}?`} message="Stored access is deleted. Linked accounts and their transactions stay in the app." confirmLabel="Disconnect" loading={disconnect.isPending} onConfirm={() => disconnect.mutate(disconnecting.id)} />
     </>
   )
 }

@@ -11,8 +11,9 @@ import pytest
 # Configure the app *before* importing it.
 _TMP = tempfile.mkdtemp(prefix="ledgerly-tests-")
 os.environ.update({
-    "DATA_DIR": _TMP, "AUTO_MIGRATE": "false", "JOBS_INLINE": "true", "SMTP_HOST": "", "APP_URL": "http://testserver",
-    "DEFAULT_TIMEZONE": "Asia/Kolkata",
+    "DATA_DIR": _TMP, "AUTO_MIGRATE": "false", "JOBS_INLINE": "true", "SMTP_HOST": "", "SMTP_USER": "", "SMTP_PASSWORD": "",
+    "APP_URL": "http://testserver", "DEFAULT_TIMEZONE": "Asia/Kolkata", "LLM_ENABLED": "false", "ALLOW_REGISTRATION": "true",
+    "APP_NAME": "Hisaab",
 })
 
 from fastapi.testclient import TestClient  # noqa: E402

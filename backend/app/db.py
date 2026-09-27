@@ -59,11 +59,21 @@ def init_engine(database_url: str) -> Engine:
 
         @event.listens_for(engine, "connect")
         def _sqlite_pragmas(dbapi_connection, _record):  # pragma: no cover - driver hook
+            # Let SQLAlchemy (not the sqlite3 module) decide when transactions start.
+            dbapi_connection.isolation_level = None
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute("PRAGMA busy_timeout=5000")
+            cursor.execute("PRAGMA busy_timeout=15000")
             cursor.close()
+
+        @event.listens_for(engine, "begin")
+        def _sqlite_begin(conn):  # pragma: no cover - driver hook
+            # The API and the worker are separate processes. A transaction that starts as a
+            # read and later writes fails instantly with "database is locked" if the other
+            # process wrote in between (SQLite can't upgrade a stale snapshot). Taking the
+            # write lock up front makes writers queue (busy_timeout) instead of failing.
+            conn.exec_driver_sql("BEGIN IMMEDIATE")
 
     _engine = engine
     SessionLocal.configure(bind=engine)

@@ -1,4 +1,4 @@
-// Thin fetch wrapper for the Ledgerly API.
+// Thin fetch wrapper for the Hisaab API.
 // - Cookies carry the session (HttpOnly; JavaScript never sees it).
 // - Every state-changing request echoes the CSRF token returned at login.
 
@@ -37,7 +37,7 @@ async function request(method, path, { body, params, form, raw } = {}) {
   try {
     response = await fetch(url, { method, headers, body: payload, credentials: 'same-origin' })
   } catch {
-    throw new ApiError(0, 'Cannot reach the Ledgerly API. Is the backend running on port 8000?')
+    throw new ApiError(0, 'Cannot reach the Hisaab API. Is the backend running on port 8000?')
   }
   if (raw && response.ok) return response
   const isJson = response.headers.get('content-type')?.includes('application/json')
@@ -54,7 +54,7 @@ export const api = {
   post: (path, body, params) => request('POST', path, { body, params }),
   put: (path, body) => request('PUT', path, { body }),
   patch: (path, body) => request('PATCH', path, { body }),
-  delete: (path, params) => request('DELETE', path, { params }),
+  delete: (path, params, body) => request('DELETE', path, { params, body }),
   upload: (path, form, params) => request('POST', path, { form, params }),
   download: async (path, params, fallbackName) => {
     const response = await request('GET', path, { params, raw: true })

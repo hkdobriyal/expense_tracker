@@ -6,7 +6,10 @@
 | Sessions | 256-bit random token in an **HttpOnly, SameSite=Lax** cookie (`Secure` when `APP_URL` is https). Only an HMAC of the token is stored, so a stolen DB can't be replayed. Sessions are listable and revocable; changing the password signs out other sessions |
 | CSRF | Per-session token returned at login; every non-GET request must send `X-CSRF-Token` |
 | Authorisation | Every query filters on `user_id`; `get_owned()` returns 404 for foreign rows (tested in `test_users_cannot_see_each_others_data`) |
-| Registration | Only the first user can register unless `ALLOW_REGISTRATION=true` |
+| Registration | Open by default (`ALLOW_REGISTRATION=true`); every user sees only their own data. Set `false` to close sign-ups |
+| Password reset | Random single-use token (only its HMAC is stored), expires in 30 min; the request never reveals whether an email exists; resetting signs out every session |
+| Email verification | Single-use 3-day token; unverified accounts see a banner |
+| Push | VAPID private key generated into `DATA_DIR` (never in git); only https push-service endpoints are accepted |
 | Rate limits | Login (5 per email / 10 per IP per 5 min), registration, demo resets, Sync Now, SMS webhook |
 | Input validation | Pydantic with `extra="forbid"`; money parsed as Decimal and rejected (not rounded) when invalid; regex rules compiled before saving |
 | Uploads | Size limit; type decided by **magic bytes** (JPG/PNG/PDF only), not the filename; random storage names outside the web root; downloads are authenticated with `nosniff` |

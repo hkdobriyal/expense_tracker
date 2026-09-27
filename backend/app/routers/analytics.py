@@ -210,7 +210,7 @@ def report(report: str, preset: Optional[str] = "this_month", start: Optional[da
     ctx, rng = _range(current, preset, start, end)
     data = reports.build(db, ctx, report, rng.start, rng.end)
     data.update(period={"start": rng.start.isoformat(), "end": rng.end.isoformat(), "label": rng.label}, currency=current.base_currency)
-    filename = f"ledgerly-{report}-{rng.start.isoformat()}-{rng.end.isoformat()}"
+    filename = f"hisaab-{report}-{rng.start.isoformat()}-{rng.end.isoformat()}"
     if format == "csv":
         return Response(reports.to_csv(data), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'})
     if format == "xlsx":

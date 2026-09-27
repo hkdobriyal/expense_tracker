@@ -135,6 +135,8 @@ export default function Transactions() {
                           {t.splits.length > 0 && <Badge>split ×{t.splits.length}</Badge>}
                           {t.tags.map((x) => <Badge key={x.id} tone="accent">#{x.name}</Badge>)}
                           {t.source !== 'manual' && <span className="faint" style={{ fontSize: 11 }}>{t.source}</span>}
+                          {t.extracted?.vpa && <span className="faint mono" style={{ fontSize: 11 }}>{t.extracted.vpa}</span>}
+                          {t.extracted?.reference && <span className="faint mono" style={{ fontSize: 11 }} title="Reference / UTR">#{t.extracted.reference}</span>}
                         </div>
                       </td>
                       <td className="hide-mobile">
@@ -143,7 +145,11 @@ export default function Transactions() {
                             : !t.reviewed || !t.category_id ? (
                               <Select value={t.category_id ? String(t.category_id) : ''} onChange={(e) => e.target.value && quickCategory.mutate({ id: t.id, category_id: Number(e.target.value) })} placeholder="Uncategorised" options={categoryOptions(categories, t.type === 'income' ? 'income' : 'expense')} aria-label="Category" />
                             ) : (
-                              <span className="row" style={{ gap: 7 }}><span className="dot" style={{ background: t.category_color || 'var(--text-3)' }} />{t.category}</span>
+                              <span className="row" style={{ gap: 7 }}>
+                                <span className="dot" style={{ background: t.category_color || 'var(--text-3)' }} />{t.category}
+                                {['ml', 'llm'].includes(t.category_source) && <span className="ai-badge" title={`Categorised by ${t.category_source === 'llm' ? 'the local AI model' : 'the on-device ML model'}`}>✦ {t.category_source === 'llm' ? 'AI' : 'ML'}{t.category_confidence ? ` ${Math.round(t.category_confidence * 100)}%` : ''}</span>}
+                                {t.category_source === 'rule' && <span className="ai-badge" title="Set by one of your rules">rule</span>}
+                              </span>
                             )}
                       </td>
                       <td className="hide-mobile faint">{t.account_name}</td>

@@ -13,11 +13,11 @@ from fastapi.responses import JSONResponse
 from .config import get_settings
 from .db import get_engine
 from .money import MoneyError
-from .routers import alerting, analytics, auth, integrations, ledger, planning, system, transactions
+from .routers import ai, alerting, analytics, auth, integrations, ledger, planning, realtime, system, transactions
 from .services.banking import ProviderError
 from .services.transactions import TransactionError
 
-log = logging.getLogger("ledgerly")
+log = logging.getLogger("hisaab")
 
 
 @asynccontextmanager
@@ -28,13 +28,13 @@ async def lifespan(_app: FastAPI):
         from .migrations import upgrade_database
 
         upgrade_database()
-    log.info("Ledgerly API ready (data dir: %s)", settings.data_dir)
+    log.info("API ready (data dir: %s)", settings.data_dir)
     yield
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Ledgerly API", version="2.0.0", lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+    app = FastAPI(title=f"{settings.app_name} API", version="2.0.0", lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
 
     app.add_middleware(
         CORSMiddleware,
@@ -72,7 +72,7 @@ def create_app() -> FastAPI:
         errors = [f"{'.'.join(str(p) for p in e['loc'][1:]) or 'body'}: {e['msg']}" for e in exc.errors()]
         return JSONResponse(status_code=422, content={"detail": "; ".join(errors[:5]), "errors": errors})
 
-    for module in (auth, ledger, transactions, planning, analytics, integrations, alerting, system):
+    for module in (auth, ledger, transactions, planning, analytics, integrations, alerting, realtime, ai, system):
         app.include_router(module.router)
     return app
 

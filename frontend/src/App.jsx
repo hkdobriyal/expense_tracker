@@ -2,12 +2,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import { Loading } from './components/ui'
 import { api, setCsrfToken } from './lib/api'
 import { SessionContext, ToastContext } from './lib/hooks'
-import Login from './pages/Login'
+import { ForgotPassword, Login, Register, ResetPassword, VerifyEmail } from './pages/Auth'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Transactions = lazy(() => import('./pages/Transactions'))
@@ -26,6 +26,8 @@ const Banks = lazy(() => import('./pages/Banks'))
 const Import = lazy(() => import('./pages/Import'))
 const Alerts = lazy(() => import('./pages/Alerts'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
+const Assistant = lazy(() => import('./pages/Assistant'))
+const Landing = lazy(() => import('./pages/Landing'))
 
 function Toasts({ items }) {
   return (
@@ -44,6 +46,8 @@ function Toasts({ items }) {
 
 export default function App() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [toasts, setToasts] = useState([])
   const push = useCallback((message, tone = 'info') => {
     const id = Math.random().toString(36).slice(2) // UI-only identifier, not financial data
@@ -76,6 +80,7 @@ export default function App() {
         setCsrfToken('')
         resetCache()
         qc.setQueryData(['me'], null)
+        navigate('/login', { replace: true })
       }
     },
   }, [me.data, qc]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -84,11 +89,25 @@ export default function App() {
     setCsrfToken(data.csrf_token)
     resetCache()
     qc.setQueryData(['me'], data)
+    if (['/login', '/register'].includes(location.pathname)) navigate('/', { replace: true })
   }
 
+  const publicPage = { '/reset-password': <ResetPassword />, '/verify-email': <VerifyEmail signedIn={!!session} /> }[location.pathname]
   let body
   if (me.isLoading) body = <div className="content"><Loading rows={6} /></div>
-  else if (!session) body = <Login onSignedIn={onSignedIn} apiError={me.error} />
+  else if (publicPage) body = publicPage
+  else if (!session) body = (
+    <>
+      {me.error && <div className="notice critical" style={{ margin: 16 }}>{me.error.message}</div>}
+      <Routes>
+        <Route path="/" element={<Suspense fallback={<Loading rows={6} />}><Landing onSignedIn={onSignedIn} /></Suspense>} />
+        <Route path="/login" element={<Login onSignedIn={onSignedIn} />} />
+        <Route path="/register" element={<Register onSignedIn={onSignedIn} />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </>
+  )
   else body = (
     <SessionContext.Provider value={session}>
       <Routes>
@@ -97,7 +116,7 @@ export default function App() {
             ['/', Dashboard], ['/transactions', Transactions], ['/accounts', Accounts], ['/categories', Categories], ['/budgets', Budgets],
             ['/goals', Goals], ['/bills', Bills], ['/subscriptions', Subscriptions], ['/recurring', Recurring], ['/analytics', Analytics],
             ['/cash-flow', CashFlow], ['/net-worth', NetWorth], ['/reports', Reports], ['/banks', Banks], ['/import', Import],
-            ['/alerts', Alerts], ['/settings', SettingsPage],
+            ['/alerts', Alerts], ['/settings', SettingsPage], ['/assistant', Assistant],
           ].map(([path, Page]) => <Route key={path} path={path} element={<Suspense fallback={<Loading rows={6} />}><Page /></Suspense>} />)}
           <Route path="*" element={<Suspense fallback={null}><Dashboard /></Suspense>} />
         </Route>

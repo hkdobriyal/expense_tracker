@@ -59,21 +59,32 @@ function StatementImport() {
   const rows = job?.rows || []
   const counts = job?.counts
   const account = accounts.find((a) => String(a.id) === accountId)
-  const fixedLayout = job && ['ofx', 'qfx', 'pdf'].includes(job.file_format)
+  // Formats read line-by-line (text/OCR) or with a known layout need no column mapping.
+  const fixedLayout = job && (['ofx', 'qfx'].includes(job.file_format) || ['pdf-text', 'pdf-ocr', 'image-ocr', 'docx-text', 'text'].includes(job.parse_method))
+  const METHOD_LABEL = {
+    csv: 'CSV table', 'txt-table': 'text table', xlsx: 'Excel sheet', xls: 'Excel sheet', 'html-table': 'HTML table', json: 'JSON records', ofx: 'OFX', qfx: 'QFX',
+    'pdf-table': 'PDF table', 'pdf-text': 'PDF text lines', 'pdf-ocr': 'scanned PDF (OCR)', 'image-ocr': 'photo (OCR)', 'docx-table': 'Word table', 'docx-text': 'Word text', text: 'text lines',
+  }
+  const parseInfo = job && (
+    <div className="row wrap faint" style={{ fontSize: 12, marginBottom: 10, gap: 8 }}>
+      <span className="ai-badge">Read as: {METHOD_LABEL[job.parse_method] || job.parse_method}</span>
+      {(job.parse_notes || []).map((n) => <span key={n}>{n}</span>)}
+    </div>
+  )
 
   return (
     <div className="stack" style={{ gap: 16 }}>
-      <Card title="1 · Upload" sub="CSV, Excel (XLSX), OFX/QFX or a text-based PDF – up to 10 MB">
+      <Card title="1 · Upload" sub="CSV, TSV, TXT, Excel (XLS/XLSX), PDF (incl. password-protected and scanned), Word (DOCX), OFX/QFX, JSON, HTML or a photo – up to 10 MB">
         <div className={`drop ${drag ? 'active' : ''}`} role="button" tabIndex={0} onClick={() => fileRef.current?.click()} onKeyDown={(e) => e.key === 'Enter' && fileRef.current?.click()}
           onDragOver={(e) => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0]) }}>
           <FileUp size={28} className="faint" />
           <div style={{ fontWeight: 700, marginTop: 8 }}>{file ? file.name : 'Drop a statement here or click to choose'}</div>
-          <div className="faint" style={{ fontSize: 13 }}>HDFC, SBI, ICICI, Axis, Kotak and most other bank exports work. CSV/XLSX import most reliably.</div>
-          <input ref={fileRef} type="file" hidden accept=".csv,.txt,.xlsx,.ofx,.qfx,.pdf" onChange={(e) => pick(e.target.files?.[0])} />
+          <div className="faint" style={{ fontSize: 13 }}>HDFC, SBI, ICICI, Axis, Kotak and most other banks work. Scanned PDFs and photos are read with on-device OCR.</div>
+          <input ref={fileRef} type="file" hidden accept=".csv,.tsv,.txt,.xls,.xlsx,.xlsm,.ofx,.qfx,.pdf,.docx,.json,.html,.htm,.png,.jpg,.jpeg,.webp" onChange={(e) => pick(e.target.files?.[0])} />
         </div>
         <div className="form-grid" style={{ marginTop: 14 }}>
           <Field label="Import into account" required><Select value={accountId} onChange={(e) => setAccountId(e.target.value)} placeholder="Choose…" options={accounts.map((a) => ({ value: String(a.id), label: a.name }))} /></Field>
-          {file?.name.toLowerCase().endsWith('.pdf') && <Field label="PDF password" hint="Often PAN in capitals + date of birth. Used once, never stored."><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" /></Field>}
+          {file?.name?.toLowerCase().endsWith('.pdf') && <Field label="PDF password" hint="Often PAN in capitals + date of birth. Used once, never stored."><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" /></Field>}
         </div>
         <FormError error={!job && error} />
         <div className="row" style={{ marginTop: 14 }}><Button variant="primary" icon={Upload} disabled={!file || !accountId} loading={upload.isPending} onClick={() => { setError(null); upload.mutate() }}>Read file</Button></div>
@@ -81,7 +92,8 @@ function StatementImport() {
 
       {job && mapping && job.status !== 'completed' && (
         <Card title="2 · Map columns" sub={`${job.file_format.toUpperCase()} · ${job.total_rows} rows${job.bank_detected ? ` · detected ${job.bank_detected}` : ''}`}>
-          {fixedLayout ? <p className="muted" style={{ marginTop: 0 }}>This format has a fixed layout – no mapping needed.</p> : (
+          {parseInfo}
+          {fixedLayout ? <p className="muted" style={{ marginTop: 0 }}>Transactions were read line by line (dates, amounts and balances detected automatically) – no column mapping needed.</p> : (
             <>
               <div className="form-grid">
                 <Field label="How are amounts shown?" className="full"><Select value={mapping.sign} onChange={(e) => setMapping({ ...mapping, sign: e.target.value })} options={SIGN_MODES} /></Field>
@@ -125,7 +137,8 @@ function StatementImport() {
                       {r.status === 'duplicate' && job.status !== 'completed' && <label className="checkbox" style={{ fontSize: 12, marginLeft: 6 }}><input type="checkbox" checked={includeDup.has(r.row)} onChange={(e) => setIncludeDup((s) => { const n = new Set(s); e.target.checked ? n.add(r.row) : n.delete(r.row); return n })} />import anyway</label>}
                     </td>
                     <td className="faint" style={{ whiteSpace: 'nowrap' }}>{r.date || r.raw?.[0]}</td>
-                    <td style={{ maxWidth: 360 }}><div className="truncate">{r.merchant || r.description}</div>{r.error && <div className="expense" style={{ fontSize: 12 }}>{r.error}</div>}{r.merchant && <div className="faint truncate" style={{ fontSize: 11 }}>{r.description}</div>}</td>
+                    <td style={{ maxWidth: 360 }}><div className="truncate">{r.merchant || r.description}</div>{r.error && <div className="expense" style={{ fontSize: 12 }}>{r.error}</div>}{r.merchant && <div className="faint truncate" style={{ fontSize: 11 }}>{r.description}</div>}
+                      {r.entities && (r.entities.mode || r.entities.vpa) && <div className="entity-chips" style={{ marginTop: 3 }}>{[r.entities.mode, r.entities.vpa, r.entities.reference && '#' + r.entities.reference].filter(Boolean).map((x) => <span key={x}>{x}</span>)}</div>}</td>
                     <td>{r.type && (job.status === 'completed' ? TYPE_LABEL[r.type] : (
                       <select className="select" style={{ minHeight: 32, padding: '4px 8px' }} value={overrides[r.row] || r.type} onChange={(e) => setOverrides({ ...overrides, [r.row]: e.target.value })} aria-label="Type">
                         {(r.direction === 'in' ? ['income', 'refund', 'adjustment'] : ['expense', 'investment', 'adjustment']).map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
@@ -188,7 +201,7 @@ function SmsImport() {
         </div>
       </Card>
       <Card title="Automatic SMS forwarding">
-        <p className="muted" style={{ marginTop: 0 }}>An Android SMS-forwarder app can post bank SMS to Ledgerly automatically. Create a token in <strong>Settings → Integrations</strong>, then configure the app with:</p>
+        <p className="muted" style={{ marginTop: 0 }}>An Android SMS-forwarder app can post bank SMS to the app automatically. Create a token in <strong>Settings → Integrations</strong>, then configure the app with:</p>
         <div className="stack" style={{ gap: 6, fontSize: 13 }}>
           <div><span className="faint">URL</span> <code>http://&lt;this-computer's-IP&gt;:8000/api/sms/webhook</code></div>
           <div><span className="faint">Header</span> <code>Authorization: Bearer lsms_…</code></div>

@@ -2,6 +2,7 @@ import { AnimatePresence, animate, motion, useReducedMotion } from 'framer-motio
 import { Loader2, X } from 'lucide-react'
 import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react'
 import { money } from '../lib/format'
+import { Tilt } from './motion'
 
 export function Button({ variant, size, icon: Icon, loading, children, className = '', ...props }) {
   const cls = ['btn', variant, size, !children && Icon ? 'icon' : '', className].filter(Boolean).join(' ')
@@ -13,9 +14,12 @@ export function Button({ variant, size, icon: Icon, loading, children, className
   )
 }
 
-export function Card({ title, sub, action, children, className = '', hover, ...props }) {
-  return (
-    <motion.section className={`card ${hover ? 'hover' : ''} ${className}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28 }} {...props}>
+// Cards fade/slide in as they scroll into view; `tilt` adds a 3D pointer tilt.
+export function Card({ title, sub, action, children, className = '', hover, tilt, ...props }) {
+  const reduce = useReducedMotion()
+  const reveal = reduce ? {} : { initial: { opacity: 0, y: 18 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, amount: 0.1 }, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }
+  const content = (
+    <>
       {(title || action) && (
         <div className="card-head">
           <div>
@@ -26,8 +30,16 @@ export function Card({ title, sub, action, children, className = '', hover, ...p
         </div>
       )}
       {children}
-    </motion.section>
+    </>
   )
+  if (tilt) {
+    return (
+      <motion.div {...reveal} style={{ display: 'grid' }} className={className.includes('span-2') ? 'span-2' : ''}>
+        <Tilt className={`card ${hover ? 'hover' : ''} ${className.replace('span-2', '')}`} max={5} {...props}>{content}</Tilt>
+      </motion.div>
+    )
+  }
+  return <motion.section className={`card ${hover ? 'hover' : ''} ${className}`} {...reveal} {...props}>{content}</motion.section>
 }
 
 export function PageHead({ kicker, title, children, actions }) {
@@ -69,7 +81,7 @@ export function Stat({ label, icon: Icon, value, currency = 'INR', meta, delta, 
   const pctChange = delta?.change_pct
   const good = pctChange == null ? null : invert ? pctChange <= 0 : pctChange >= 0
   return (
-    <Card className="stat">
+    <Card className="stat" tilt>
       <div className="label">{Icon && <span className="stat-icon"><Icon size={16} aria-hidden /></span>}{label}</div>
       <div className="value">{typeof value === 'number' ? <Money minor={value} currency={currency} animated={animated} /> : value}</div>
       <div className="meta">

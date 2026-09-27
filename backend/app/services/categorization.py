@@ -148,10 +148,34 @@ def suggest_category(db: Session, user_id: int, text: str, merchant: Merchant | 
 
 
 def auto_categorize(db: Session, user_id: int, txn: Transaction) -> None:
-    """Fill category/merchant for a transaction that arrived without one."""
+    """Fill the category of a transaction that arrived without one.
+
+    Order: user rules → the merchant's learned default → ML model (if confident)
+    → built-in keyword hints. The winner is recorded in ``category_source``.
+    """
+    from . import ml
+
     matched = apply_rules(db, user_id, txn)
+    if matched is not None and matched.set_category_id:
+        txn.category_source, txn.category_confidence = "rule", 1.0
     if txn.category_id is None and txn.type in ("expense", "income", "refund"):
-        txn.category_id = suggest_category(db, user_id, f"{txn.description} {txn.raw_description}", txn.merchant, txn.type)
-    if matched is None and txn.source in ("import", "bank", "sms"):
+        if txn.merchant is not None and txn.merchant.default_category_id:
+            txn.category_id = txn.merchant.default_category_id
+            txn.category_source, txn.category_confidence = "merchant", 0.95
+        else:
+            predictions = ml.predict(db, user_id, txn.description, txn.merchant.name if txn.merchant else None,
+                                     txn.raw_description, "income" if txn.type == "income" else "expense", txn.amount_minor)
+            best = predictions[0] if predictions else None
+            if best and best[1] >= ml.AUTO_APPLY:
+                txn.category_id = best[0]
+                txn.category_source, txn.category_confidence = "ml", best[1]
+            else:
+                hint = suggest_category(db, user_id, f"{txn.description} {txn.raw_description}", None, txn.type)
+                if hint:
+                    txn.category_id = hint
+                    txn.category_source, txn.category_confidence = "keyword", 0.6
+            if txn.category_id is None and predictions and predictions[0][1] >= ml.SUGGEST:
+                txn.extracted = {**(txn.extracted or {}), "suggestions": [{"category_id": c, "confidence": p} for c, p in predictions]}
+    if (matched is None or not matched.mark_reviewed) and txn.source in ("import", "bank", "sms"):
         # Machine-created transactions are flagged for review unless a user rule vouched for them.
-        txn.reviewed = False
+        txn.reviewed = bool(matched is not None and matched.mark_reviewed)

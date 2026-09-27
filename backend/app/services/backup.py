@@ -45,7 +45,7 @@ def export(db: Session, ctx: UserContext) -> dict:
     acc_name = {a.id: a.name for a in accounts}
     path = lambda cid: _cat_path(by_id.get(cid), by_id) if cid else None  # noqa: E731
     return {
-        "app": "ledgerly", "version": VERSION, "exported_at": utcnow().isoformat(), "base_currency": ctx.base_currency,
+        "app": "hisaab", "version": VERSION, "exported_at": utcnow().isoformat(), "base_currency": ctx.base_currency,
         "categories": [{"path": _cat_path(c, by_id), "kind": c.kind, "color": c.color, "icon": c.icon} for c in cats],
         "accounts": [{"name": a.name, "type": a.type, "institution": a.institution, "currency": a.currency,
                       "opening_balance": format_decimal(a.opening_balance_minor, a.currency), "opening_date": a.opening_date.isoformat() if a.opening_date else None,
@@ -98,7 +98,7 @@ def _d(value) -> date | None:
 
 
 def restore(db: Session, ctx: UserContext, payload: dict) -> dict:
-    if payload.get("app") == "ledgerly" and payload.get("version") == VERSION:
+    if payload.get("app") in ("hisaab", "ledgerly") and payload.get("version") == VERSION:
         return _restore_v2(db, ctx, payload)
     envelope = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     if isinstance(envelope, dict) and "transactions" in envelope and payload.get("version") in (1, None):

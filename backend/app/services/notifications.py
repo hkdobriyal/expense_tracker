@@ -1,10 +1,10 @@
 """Notification channels behind one provider interface.
 
     in_app    – stored in the notifications table (always free)
-    email     – SMTP (Mailpit locally, any SMTP server in production); console fallback
+    email     – SMTP (Gmail/Outlook app password, any mail host, Mailpit locally); log fallback
+    push      – Web Push to subscribed browsers (VAPID, free)
     sms       – mock adapter (logs only) until a real provider is chosen
     whatsapp  – mock adapter (logs only) until a real provider is chosen
-    push      – not implemented yet; deliveries are recorded as skipped
 
 Delivery statuses are explicit: "mocked" and "logged" never pretend a message
 reached a phone or inbox.
@@ -13,10 +13,7 @@ reached a phone or inbox.
 from __future__ import annotations
 
 import logging
-import smtplib
-import ssl
 from dataclasses import dataclass
-from email.message import EmailMessage
 from typing import Protocol
 
 from sqlalchemy import select
@@ -27,7 +24,7 @@ from ..db import utcnow
 from ..models import AlertEvent, Notification, NotificationDelivery, User, UserSettings
 from ..security import mask
 
-log = logging.getLogger("ledgerly.notifications")
+log = logging.getLogger("hisaab.notifications")
 
 
 @dataclass
@@ -52,37 +49,15 @@ class NotificationProvider(Protocol):
     def send(self, destination: str, message: Message) -> DeliveryResult: ...
 
 
-class SMTPEmailProvider:
+class EmailProvider:
     name = "smtp"
 
     def send(self, destination: str, message: Message) -> DeliveryResult:
-        s = get_settings()
-        email = EmailMessage()
-        email["Subject"] = f"[Ledgerly] {message.title}"
-        email["From"] = s.smtp_from
-        email["To"] = destination
-        link = f"\n\nOpen Ledgerly: {s.app_url}{message.link}" if message.link else ""
-        email.set_content(f"{message.body}{link}\n\n— Ledgerly alerts. Manage alerts in Settings → Alerts.")
-        try:
-            with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=15) as smtp:
-                if s.smtp_starttls:
-                    smtp.starttls(context=ssl.create_default_context())
-                if s.smtp_user:
-                    smtp.login(s.smtp_user, s.smtp_password)
-                smtp.send_message(email)
-            return DeliveryResult("sent", self.name)
-        except (OSError, smtplib.SMTPException) as exc:
-            return DeliveryResult("failed", self.name, f"{type(exc).__name__}: {exc}"[:500])
+        from .email import send_email
 
-
-class ConsoleEmailProvider:
-    """Used when SMTP_HOST is not configured: the email is written to the log, not sent."""
-
-    name = "console"
-
-    def send(self, destination: str, message: Message) -> DeliveryResult:
-        log.info("EMAIL (not sent, SMTP not configured) to=%s subject=%s", mask(destination), message.title)
-        return DeliveryResult("logged", self.name, "SMTP is not configured; email written to the server log only")
+        link = f"{get_settings().app_url}{message.link}" if message.link else None
+        result = send_email(destination, message.title, message.body, link, "Open in app" if link else None)
+        return DeliveryResult(result.status, result.provider, result.error)
 
 
 class MockSMSProvider:
@@ -101,22 +76,31 @@ class MockWhatsAppProvider:
         return DeliveryResult("mocked", self.name, "Mock WhatsApp provider – no message was sent")
 
 
-class UnavailablePushProvider:
-    name = "none"
+class WebPushProvider:
+    """``destination`` is the user id; every browser the user subscribed receives the push."""
+
+    name = "webpush"
+
+    def __init__(self, db: Session):
+        self.db = db
 
     def send(self, destination: str, message: Message) -> DeliveryResult:
-        return DeliveryResult("skipped", self.name, "Push notifications are not implemented yet")
+        from .push import send_to_user
+
+        delivered, errors = send_to_user(self.db, int(destination), message.title, message.body, message.link or "/")
+        if delivered:
+            return DeliveryResult("sent", self.name, "; ".join(errors) or None)
+        return DeliveryResult("failed" if errors and "subscribed" not in errors[0] else "skipped", self.name, "; ".join(errors) or None)
 
 
-def provider_for(channel: str) -> NotificationProvider:
-    s = get_settings()
+def provider_for(channel: str, db: Session | None = None) -> NotificationProvider:
     if channel == "email":
-        return SMTPEmailProvider() if s.email_configured else ConsoleEmailProvider()
+        return EmailProvider()
     if channel == "sms":
-        return MockSMSProvider()  # real adapters (e.g. Twilio, MSG91) plug in here – see docs/notifications.md
+        return MockSMSProvider()  # real adapters (e.g. MSG91, Twilio) plug in here – see docs/notifications.md
     if channel == "whatsapp":
         return MockWhatsAppProvider()
-    return UnavailablePushProvider()
+    return WebPushProvider(db)
 
 
 def destination_for(channel: str, user: User, settings: UserSettings) -> str:
@@ -126,6 +110,8 @@ def destination_for(channel: str, user: User, settings: UserSettings) -> str:
         return settings.contact_phone
     if channel == "whatsapp":
         return settings.whatsapp_number or settings.contact_phone
+    if channel == "push":
+        return str(user.id)
     return ""
 
 
@@ -160,10 +146,10 @@ def dispatch(db: Session, user: User, settings: UserSettings, event: AlertEvent,
         if channel == "in_app":
             continue
         destination = destination_for(channel, user, settings)
-        if not destination and channel != "push":
+        if not destination:
             deliveries.append(NotificationDelivery(user_id=user.id, alert_event_id=event.id, channel=channel, status="skipped", error=f"No {channel} destination configured in Settings"))
             continue
-        deliveries.append(NotificationDelivery(user_id=user.id, alert_event_id=event.id, notification_id=notification.id if notification else None, channel=channel, destination=mask(destination), status="queued"))
+        deliveries.append(NotificationDelivery(user_id=user.id, alert_event_id=event.id, notification_id=notification.id if notification else None, channel=channel, destination="browser" if channel == "push" else mask(destination), status="queued"))
     for d in deliveries:
         db.add(d)
     db.flush()
@@ -185,7 +171,7 @@ def deliver(db: Session, delivery_id: int) -> NotificationDelivery | None:
         return delivery
     settings = user.settings
     destination = destination_for(delivery.channel, user, settings)
-    provider = provider_for(delivery.channel)
+    provider = provider_for(delivery.channel, db)
     result = provider.send(destination, Message(event.title, event.message, event.severity, event.category, (event.context or {}).get("link", "")))
     delivery.attempts += 1
     delivery.provider = result.provider

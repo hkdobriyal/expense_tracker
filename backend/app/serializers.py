@@ -19,7 +19,8 @@ def _iso(value):
 
 
 def user(u: User) -> dict:
-    return {"id": u.id, "email": u.email, "display_name": u.display_name, "is_demo": u.is_demo, "created_at": _iso(u.created_at)}
+    return {"id": u.id, "email": u.email, "display_name": u.display_name, "is_demo": u.is_demo, "created_at": _iso(u.created_at),
+            "email_verified": u.email_verified_at is not None or u.is_demo}
 
 
 def settings(s: UserSettings) -> dict:
@@ -77,6 +78,9 @@ def transaction(t: Transaction) -> dict:
         "category_color": t.category.color if t.category else None,
         "notes": t.notes, "payment_method": t.payment_method, "is_recurring": t.is_recurring, "reviewed": t.reviewed,
         "source": t.source, "external_id": t.external_id, "raw_description": t.raw_description,
+        "extracted": {k: v for k, v in (t.extracted or {}).items() if k != "suggestions"},
+        "suggestions": (t.extracted or {}).get("suggestions", []),
+        "category_source": t.category_source, "category_confidence": t.category_confidence,
         "tags": [tag(x) for x in t.tags],
         "splits": [{"id": s.id, "category_id": s.category_id, "category": s.category.name if s.category else None, "amount_minor": s.amount_minor, "note": s.note} for s in t.splits],
         "attachments": [attachment(a) for a in t.attachments],
@@ -201,6 +205,7 @@ def import_job(j: ImportJob, preview_rows: int = 25) -> dict:
             "errors": sum(1 for r in rows if r.get("status") == "error"), "imported": j.imported_count, "skipped": j.skipped_count,
         },
         "error": j.error, "created_at": _iso(j.created_at), "completed_at": _iso(j.completed_at),
+        "parse_method": (j.parse_info or {}).get("method", j.file_format), "parse_notes": (j.parse_info or {}).get("notes", []),
     }
 
 

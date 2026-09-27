@@ -25,6 +25,7 @@ def create_job(db: Session, ctx: UserContext, filename: str, content: bytes, pas
         user_id=ctx.user_id, filename=filename[:255], file_format=parsed.file_format, status="preview",
         bank_detected=parsed.bank_detected, headers=parsed.headers, raw_rows=parsed.rows,
         mapping=parsed.preset_mapping or suggest_mapping(parsed.headers), account_id=account_id,
+        parse_info={"method": parsed.method, "notes": parsed.notes or []},
     )
     db.add(job)
     db.flush()

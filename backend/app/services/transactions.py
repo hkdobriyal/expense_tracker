@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..models import TRANSACTION_TYPES, Account, Category, Tag, Transaction, TransactionSplit
 from ..money import MoneyError, convert_minor, normalize_currency, to_minor
 from .categorization import auto_categorize, get_or_create_merchant, normalize_merchant
+from .extraction import extract, payment_method
 from .fx import latest_rate
 
 
@@ -206,7 +207,13 @@ def build_transaction(db: Session, user_id: int, base_currency: str, data: Trans
         txn.original_currency = None
         txn.original_amount_minor = None
 
-    merchant = get_or_create_merchant(db, user_id, data.merchant) if data.type not in ("transfer", "adjustment") else None
+    # Entity extraction (mode, UPI id, reference, payee…) fills gaps the caller didn't provide.
+    entities = extract(txn.raw_description or description)
+    txn.extracted = {k: v for k, v in entities.items() if k != "suggestions"}
+    if not txn.payment_method:
+        txn.payment_method = payment_method(entities)
+    merchant_name = data.merchant or (entities.get("merchant") if entities.get("counterparty") != "person" else None)
+    merchant = get_or_create_merchant(db, user_id, merchant_name) if data.type not in ("transfer", "adjustment") else None
     txn.merchant_id = merchant.id if merchant else None
     txn.merchant = merchant
     txn.tags = resolve_tags(db, user_id, data.tags)
@@ -214,7 +221,12 @@ def build_transaction(db: Session, user_id: int, base_currency: str, data: Trans
     if data.reviewed is not None:
         txn.reviewed = data.reviewed
     _apply_splits(db, user_id, txn, data.splits)
-    if txn.category_id is None and not txn.splits:
+    if category is not None:
+        txn.category_source, txn.category_confidence = "user", None
+    elif txn.splits:
+        txn.category_source, txn.category_confidence = "user", None
+    else:
+        txn.category_source, txn.category_confidence = "", None
         auto_categorize(db, user_id, txn)
     db.flush()
     return txn

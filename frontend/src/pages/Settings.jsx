@@ -1,20 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
-import { Copy, Download, KeyRound, Monitor, Trash2, Upload } from 'lucide-react'
+import { BellRing, BrainCircuit, Copy, Download, KeyRound, Mail, Monitor, RefreshCw, Sparkles, Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Badge, Button, Card, Field, FormError, Modal, PageHead, Segmented, Select, Switch } from '../components/ui'
 import { api } from '../lib/api'
 import { relativeTime, todayISO } from '../lib/format'
+import { useSearchParams } from 'react-router-dom'
 import { useAccounts, useLedgerMutation, useSession, useToast } from '../lib/hooks'
+import { currentSubscription, disablePush, enablePush, pushSupport } from '../lib/push'
 
 const SECTIONS = [
   { value: 'general', label: 'General' }, { value: 'notifications', label: 'Notifications' }, { value: 'fx', label: 'Exchange rates' },
-  { value: 'data', label: 'Data' }, { value: 'security', label: 'Security' }, { value: 'integrations', label: 'Integrations' }, { value: 'system', label: 'System' },
+  { value: 'ai', label: 'AI' }, { value: 'data', label: 'Data' }, { value: 'security', label: 'Security' }, { value: 'integrations', label: 'Integrations' }, { value: 'system', label: 'System' },
 ]
 const CHANNELS = [['in_app', 'In-app'], ['email', 'Email'], ['sms', 'SMS'], ['whatsapp', 'WhatsApp'], ['push', 'Push']]
 const CATEGORIES = [['budget', 'Budgets'], ['spending', 'Spending'], ['transaction', 'Transactions'], ['account', 'Accounts'], ['bills', 'Bills'], ['subscriptions', 'Subscriptions'], ['goals', 'Goals'], ['income', 'Income'], ['system', 'Bank sync & system']]
 
 export default function Settings() {
-  const [section, setSection] = useState('general')
+  const [params, setParams] = useSearchParams()
+  const section = params.get('section') || 'general'
+  const setSection = (value) => setParams({ section: value }, { replace: true })
   return (
     <>
       <PageHead kicker="Workspace" title="Settings" />
@@ -22,6 +26,7 @@ export default function Settings() {
       {section === 'general' && <General />}
       {section === 'notifications' && <Notifications />}
       {section === 'fx' && <ExchangeRates />}
+      {section === 'ai' && <AISettings />}
       {section === 'data' && <Data />}
       {section === 'security' && <Security />}
       {section === 'integrations' && <Integrations />}
@@ -77,7 +82,7 @@ function Notifications() {
     email: health.data?.email?.startsWith('smtp') ? 'SMTP configured' : 'SMTP not configured – emails are written to the server log only',
     sms: 'Mock adapter – no SMS is sent (see docs/costs.md)',
     whatsapp: 'Mock adapter – no message is sent (see docs/costs.md)',
-    push: 'Not implemented yet',
+    push: 'Browser notifications via Web Push – free, enable per device below',
     in_app: 'Always free',
   }
   return (
@@ -93,6 +98,7 @@ function Notifications() {
           ))}
         </div>
       </Card>
+      <DeliveryTests />
       <Card title="Where to send">
         <form className="form-grid" onSubmit={(e) => { e.preventDefault(); save.mutate(contact) }}>
           <Field label="Email"><input className="input" type="email" value={contact.contact_email} onChange={(e) => setContact({ ...contact, contact_email: e.target.value })} /></Field>
@@ -158,10 +164,10 @@ function Data() {
     <div className="grid grid-2">
       <Card title="Backup" sub="A portable JSON file with every account, transaction, budget, goal, bill, subscription and rule">
         <div className="stack">
-          <Button icon={Download} onClick={() => api.download('/backup', null, 'ledgerly-backup.json').catch((e) => toast.error(e.message))}>Download backup</Button>
+          <Button icon={Download} onClick={() => api.download('/backup', null, 'hisaab-backup.json').catch((e) => toast.error(e.message))}>Download backup</Button>
           <Button icon={Upload} onClick={() => fileRef.current?.click()}>Restore from backup…</Button>
           <input ref={fileRef} type="file" hidden accept="application/json,.json" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) setPending(f) }} />
-          <p className="faint" style={{ fontSize: 13, margin: 0 }}>Also accepts backups from the previous version of Ledgerly. Keep backups outside OneDrive/Git if they contain sensitive data.</p>
+          <p className="faint" style={{ fontSize: 13, margin: 0 }}>Also accepts backups from the previous version (Ledgerly). Keep backups outside OneDrive/Git if they contain sensitive data.</p>
         </div>
       </Card>
       <Card title="Export" sub="Spreadsheets for your own analysis">
@@ -232,7 +238,7 @@ function Integrations() {
   const revoke = useLedgerMutation(() => api.delete('/settings/sms-webhook-token'), { onSuccess: () => { setToken(null); session.refresh(); toast.success('Token revoked') } })
   return (
     <div className="grid grid-2">
-      <Card title="SMS webhook" sub="Lets an SMS-forwarder app on your phone post bank SMS to Ledgerly">
+      <Card title="SMS webhook" sub="Lets an SMS-forwarder app on your phone post bank SMS to the app">
         <div className="stack">
           <div>Status: {session.settings.sms_webhook_configured ? <Badge tone="success">active · ends in {session.settings.sms_webhook_token_hint}</Badge> : <Badge>not set up</Badge>}</div>
           {token && (
@@ -272,6 +278,123 @@ function System() {
         {!jobs.data?.jobs?.length ? <p className="muted">No jobs in the last 3 days.</p> : (
           <div className="list">{jobs.data.jobs.map((j) => <div key={j.id} className="list-row"><code>{j.type}</code><span className="grow faint" style={{ fontSize: 12 }}>{relativeTime(j.created_at)}{j.last_error ? ` · ${j.last_error}` : ''}</span><Badge tone={j.status === 'done' ? 'success' : j.status === 'failed' ? 'critical' : 'accent'}>{j.status}</Badge></div>)}</div>
         )}
+      </Card>
+    </div>
+  )
+}
+
+
+function DeliveryTests() {
+  const session = useSession()
+  const toast = useToast()
+  const health = useQuery({ queryKey: ['health'], queryFn: () => api.get('/health') })
+  const devices = useQuery({ queryKey: ['push-devices'], queryFn: () => api.get('/push/devices') })
+  const [subscribed, setSubscribed] = useState(null)
+  const [busy, setBusy] = useState('')
+  const support = pushSupport()
+  useEffect(() => {
+    if (support.supported) currentSubscription().then((sub) => setSubscribed(!!sub)).catch(() => setSubscribed(false))
+  }, [support.supported])
+  const run = async (key, fn) => {
+    setBusy(key)
+    try { await fn() } catch (e) { toast.error(e.message) } finally { setBusy('') }
+  }
+  const emailOk = health.data?.email?.startsWith('smtp')
+  return (
+    <div className="grid grid-2">
+      <Card title="Email" sub={emailOk ? 'SMTP is configured' : 'SMTP not configured yet'} action={<Mail size={16} className="faint" />}>
+        {!emailOk && (
+          <div className="notice warning" style={{ marginBottom: 12 }}><div>
+            <strong>Add your SMTP details to backend/.env</strong>
+            Replace the dummy values (Gmail: <code>SMTP_HOST=smtp.gmail.com</code>, <code>SMTP_PORT=587</code>, your address and a 16-character App Password), then restart the API and worker.
+          </div></div>
+        )}
+        <Button icon={Mail} loading={busy === 'email'} onClick={() => run('email', async () => {
+          const r = await api.post('/notifications/test-email')
+          if (r.status === 'sent') toast.success(`Test email sent to ${r.to}`)
+          else toast.error(r.error || `Email ${r.status}`)
+        })}>Send test email</Button>
+        <p className="faint" style={{ fontSize: 12, marginBottom: 0 }}>Sent to {session.settings.contact_email || session.user.email}.</p>
+      </Card>
+      <Card title="Push on this device" sub={support.supported ? `Browser permission: ${Notification.permission}` : support.reason} action={<BellRing size={16} className="faint" />}>
+        <div className="row wrap">
+          {subscribed ? (
+            <>
+              <Button variant="primary" icon={BellRing} loading={busy === 'push-test'} onClick={() => run('push-test', async () => { await api.post('/push/test'); toast.success('Push sent – check your notifications') })}>Send test push</Button>
+              <Button loading={busy === 'push-off'} onClick={() => run('push-off', async () => { await disablePush(); setSubscribed(false); session.refresh(); devices.refetch() })}>Turn off here</Button>
+            </>
+          ) : (
+            <Button variant="primary" icon={BellRing} disabled={!support.supported} loading={busy === 'push-on'} onClick={() => run('push-on', async () => {
+              await enablePush()
+              setSubscribed(true)
+              session.refresh()
+              devices.refetch()
+              toast.success('Push notifications enabled on this device')
+            })}>Enable push notifications</Button>
+          )}
+        </div>
+        <p className="faint" style={{ fontSize: 12, marginBottom: 0 }}>{devices.data?.length || 0} device(s) subscribed. Works on localhost; other addresses need HTTPS.</p>
+      </Card>
+    </div>
+  )
+}
+
+function AISettings() {
+  const toast = useToast()
+  const status = useQuery({ queryKey: ['ai-status'], queryFn: () => api.get('/ai/status') })
+  const train = useLedgerMutation(() => api.post('/ai/train'), { onSuccess: () => { toast.success('Model retrained'); status.refetch() } })
+  const categorize = useLedgerMutation((scope) => api.post('/ai/categorize', { scope }), {
+    onSuccess: (r) => toast.success(`${r.categorized_by_ml} by ML, ${r.categorized_by_llm} by local AI · ${r.still_uncertain} still need you`),
+  })
+  const ml = status.data?.ml
+  const llm = status.data?.llm
+  return (
+    <div className="grid grid-2">
+      <Card title="Smart categorisation (ML)" sub="scikit-learn · runs on this computer · free" action={<BrainCircuit size={16} className="faint" />}>
+        {ml && (
+          <div className="stack" style={{ gap: 8, fontSize: 14 }}>
+            <div className="row between"><span className="muted">Status</span><Badge tone={ml.trained ? 'success' : 'warning'}>{ml.trained ? 'trained' : 'not trained yet'}</Badge></div>
+            {ml.trained && (
+              <>
+                <div className="row between"><span className="muted">Your labelled examples</span><strong>{ml.user_samples}</strong></div>
+                <div className="row between"><span className="muted">Categories learned</span><strong>{ml.classes}</strong></div>
+                <div className="row between"><span className="muted">Accuracy on your recent data</span><strong>{ml.holdout_accuracy != null ? `${Math.round(ml.holdout_accuracy * 100)}%` : 'needs 40+ examples'}</strong></div>
+                <div className="row between"><span className="muted">Last trained</span><span>{relativeTime(ml.trained_at)}</span></div>
+              </>
+            )}
+            <p className="faint" style={{ fontSize: 12, margin: '6px 0' }}>Every time you pick or correct a category, the model gets better. It retrains automatically in the background worker.</p>
+            <div className="row wrap">
+              <Button icon={RefreshCw} loading={train.isPending} onClick={() => train.mutate()}>Retrain now</Button>
+              <Button variant="primary" icon={Sparkles} loading={categorize.isPending} onClick={() => categorize.mutate('uncategorized')}>Categorise uncategorised</Button>
+            </div>
+          </div>
+        )}
+      </Card>
+      <Card title="Local AI model (optional)" sub="Open-source LLM through Ollama – free, private" action={<Sparkles size={16} className="faint" />}>
+        {llm && (llm.available ? (
+          <div className="stack" style={{ gap: 8 }}>
+            <div className="notice success"><div><strong>Connected: {llm.model}</strong>{llm.base_url}{!llm.local && ' – note: this server is not on your computer'}</div></div>
+            <p className="faint" style={{ fontSize: 13, margin: 0 }}>Used for “Ask your money” and for transactions the ML model is unsure about.</p>
+          </div>
+        ) : (
+          <div className="stack" style={{ gap: 10, fontSize: 14 }}>
+            <div className="notice"><div><strong>Not connected</strong><span className="faint" style={{ fontSize: 12 }}>{llm.reason}</span></div></div>
+            <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+              <li>Install <strong>Ollama</strong> (free, open source) from ollama.com – on a work laptop this may need IT approval.</li>
+              <li>In a terminal: <code>ollama pull {llm.model || 'qwen2.5:3b'}</code> (about 2 GB, Apache-2.0 licence).</li>
+              <li>Keep Ollama running, then click “Check again”.</li>
+            </ol>
+            <p className="faint" style={{ fontSize: 12, margin: 0 }}>Everything works without it – the rules engine answers questions and the ML model categorises.</p>
+            <div><Button icon={RefreshCw} onClick={() => status.refetch()}>Check again</Button></div>
+          </div>
+        ))}
+      </Card>
+      <Card title="Reading statements" className="span-2">
+        <div className="grid grid-3" style={{ fontSize: 14 }}>
+          <div><strong>Entity extraction</strong><p className="muted" style={{ margin: '4px 0 0' }}>Pulls the mode (UPI/NEFT/IMPS/card…), UPI id, reference number, payee, bank and card digits out of every narration.</p></div>
+          <div><strong>OCR</strong><p className="muted" style={{ margin: '4px 0 0' }}>Scanned PDFs and photos are read locally with RapidOCR (open source) – nothing is uploaded anywhere.</p></div>
+          <div><strong>Balance check</strong><p className="muted" style={{ margin: '4px 0 0' }}>For PDFs and text statements, debit vs credit is confirmed from the running balance, not guessed.</p></div>
+        </div>
       </Card>
     </div>
   )

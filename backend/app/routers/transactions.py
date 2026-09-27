@@ -165,6 +165,7 @@ def patch_transaction(txn_id: int, body: dict, current: CurrentUser = Depends(ge
         if txn.splits:
             raise HTTPException(422, "Edit the splits to change categories of a split transaction")
         txn.category_id = body["category_id"]
+        txn.category_source, txn.category_confidence = "user", None
         txn.reviewed = True
         db.flush()
         db.refresh(txn)
@@ -221,6 +222,7 @@ def bulk(body: BulkIn, request: Request, current: CurrentUser = Depends(get_curr
         for t in txns:
             if not t.splits:
                 t.category_id = body.category_id
+                t.category_source, t.category_confidence = "user", None
                 t.reviewed = True
     elif body.action in ("mark_reviewed", "mark_unreviewed"):
         for t in txns:

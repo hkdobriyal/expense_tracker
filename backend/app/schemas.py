@@ -42,6 +42,20 @@ class RegisterIn(Input):
 class LoginIn(Input):
     email: str = Field(max_length=255)
     password: str = Field(max_length=200)
+    remember: bool = True
+
+
+class EmailIn(Input):
+    email: str = Field(min_length=3, max_length=255)
+
+
+class TokenIn(Input):
+    token: str = Field(min_length=10, max_length=200)
+
+
+class ResetPasswordIn(Input):
+    token: str = Field(min_length=10, max_length=200)
+    password: str = Field(min_length=10, max_length=200)
 
 
 class ChangePasswordIn(Input):

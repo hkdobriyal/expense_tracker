@@ -1,49 +1,24 @@
 {
   "id": "/",
-  "name": "Ledgerly Personal Finance OS",
-  "short_name": "Ledgerly",
-  "description": "Privacy-first personal finance tracker with zero-touch Indian UPI & bank sync, 3D analytics, budgets, and investments.",
+  "name": "Hisaab – Personal Finance",
+  "short_name": "Hisaab",
+  "description": "Private, local-first personal finance: budgets, bills, subscriptions, goals, statement import with AI categorisation and smart alerts.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
-  "categories": ["finance", "productivity", "utilities"],
+  "categories": ["finance", "productivity"],
   "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ],
   "shortcuts": [
-    {
-      "name": "Quick Add Transaction",
-      "short_name": "Add Txn",
-      "description": "Record a new expense or income",
-      "url": "/?action=capture",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Auto-Sync Hub",
-      "short_name": "AutoSync",
-      "description": "Import bank statement or simulate live UPI debit",
-      "url": "/?action=autosync",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    }
+    { "name": "Add transaction", "short_name": "Add", "url": "/transactions?new=1", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Import statement", "short_name": "Import", "url": "/import", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Ask your money", "short_name": "Ask", "url": "/assistant", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ]
 }
